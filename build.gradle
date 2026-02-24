@@ -1,0 +1,35 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'io.gatling.gradle' version '3.14.3.7'
+}
+
+group = 'com.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.gatling:gatling-test-framework:3.14.0'
+    implementation 'io.gatling:gatling-core:3.14.0'
+    implementation 'io.gatling:gatling-http:3.14.0'
+}
+
+application {
+    mainClass = 'Simulations'
+}
+
+sourceSets {
+    gatling {
+        resources.srcDirs = ["resources", "src/main/java/data"]
+    }
+}
+
+task runGatling(type: JavaExec) {
+    group = 'verification'
+    description = 'Run Gatling load tests.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'DebugSimulation'
+}

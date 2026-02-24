@@ -1,0 +1,18 @@
+# Sensitive files
+.env
+*.txt
+*.json
+.DS_Store
+gatling_stats.md
+.idea/
+.vscode/
+to_delete/
+out/
+build/
+.gradle
+gradle/
+gradlew
+gradlew.bat
+.idea
+src/main/resources/data/azure-users.csv
+node_modules/
