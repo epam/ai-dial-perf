@@ -1,0 +1,172 @@
+name: AI Dial Admin Performance Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulation:
+        description: "Select the simulation type"
+        required: true
+        default: "DebugSimulation"
+        type: choice
+        options:
+          - DebugSimulation
+          - LoadSimulation
+      scenario_name:
+        description: "Select the scenario to run"
+        required: true
+        default: "aiDialAdminCreateModelAPI"
+        type: choice
+        options:
+          - aiDialAdminCreateModelAPI
+      open_model:
+        description: "Use open injection model (true) or closed (false)"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      users:
+        description: "Number of users (concurrent for closed, users/sec for open model)"
+        required: true
+        default: "1"
+        type: string
+      users_ramp_up_from:
+        description: "Starting number of users for ramp-up phase"
+        required: true
+        default: "0"
+        type: string
+      users_ramp_down_to:
+        description: "Ending number of users for ramp-down phase"
+        required: true
+        default: "0"
+        type: string
+      duration:
+        description: "Test duration (e.g. 300s, 10m, 1h)"
+        required: true
+        default: "300s"
+        type: string
+      duration_ramp_up:
+        description: "Ramp-up duration (e.g. 20s, 1m)"
+        required: true
+        default: "20s"
+        type: string
+      duration_ramp_down:
+        description: "Ramp-down duration (e.g. 20s, 1m)"
+        required: true
+        default: "20s"
+        type: string
+      admin_base_url:
+        description: "AI Dial Admin base URL"
+        required: true
+        default: "https://ai-dial-admin-test.imf-eid.projects.epam.com/"
+        type: string
+      model_sync_attempts:
+        description: "Number of sync polling attempts"
+        required: true
+        default: "25"
+        type: string
+      model_sync_pause_duration:
+        description: "Pause between sync attempts (seconds)"
+        required: true
+        default: "5"
+        type: string
+      model_endpoint:
+        description: "Model endpoint URL"
+        required: true
+        default: "https://api.openai.com/v1gpt-4-turbo/chat/completions/"
+        type: string
+
+env:
+  SIMULATION: ${{ github.event.inputs.simulation }}
+  SCENARIO_NAME: ${{ github.event.inputs.scenario_name }}
+  OPEN_MODEL: ${{ github.event.inputs.open_model }}
+  USERS: ${{ github.event.inputs.users }}
+  USERS_RAMP_UP_FROM: ${{ github.event.inputs.users_ramp_up_from }}
+  USERS_RAMP_DOWN_TO: ${{ github.event.inputs.users_ramp_down_to }}
+  DURATION: ${{ github.event.inputs.duration }}
+  DURATION_RAMP_UP: ${{ github.event.inputs.duration_ramp_up }}
+  DURATION_RAMP_DOWN: ${{ github.event.inputs.duration_ramp_down }}
+  ADMIN_BASE_URL: ${{ github.event.inputs.admin_base_url }}
+  MODEL_SYNC_ATTEMPTS: ${{ github.event.inputs.model_sync_attempts }}
+  MODEL_SYNC_PAUSE_DURATION: ${{ github.event.inputs.model_sync_pause_duration }}
+  MODEL_ENDPOINT: ${{ github.event.inputs.model_endpoint }}
+
+jobs:
+  gatling-test:
+    name: Run Gatling Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Gatling performance tests
+        continue-on-error: true
+        run: |
+          gradle gatlingRun --simulation=$SIMULATION \
+            -DscenarioName=$SCENARIO_NAME \
+            -DopenModel=$OPEN_MODEL \
+            -Dusers=$USERS \
+            -DusersRampUpFrom=$USERS_RAMP_UP_FROM \
+            -DusersRampDownTo=$USERS_RAMP_DOWN_TO \
+            -Dduration=$DURATION \
+            -DdurationRampUp=$DURATION_RAMP_UP \
+            -DdurationRampDown=$DURATION_RAMP_DOWN \
+            -DaiAdminBaseUrl=$ADMIN_BASE_URL \
+            -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
+            -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
+            -DmodelEndpoint=$MODEL_ENDPOINT \
+            -DaiAdminUsersFile=${{ secrets.DIAL_ADMIN_USERS_FILE }} \
+            -DdialAdminScope="${{ secrets.DIAL_ADMIN_SCOPE }}" \
+            -DdialAdminClientId=${{ secrets.DIAL_ADMIN_CLIENT_ID }} \
+            -DdialAdminClientSecret=${{ secrets.DIAL_ADMIN_CLIENT_SECRET }} \
+            2>&1 | tee gatlingRunLogs.log
+
+      - name: Parse Gatling report
+        if: always()
+        run: |
+          chmod +x scripts/parse_gatling.sh
+          ./scripts/parse_gatling.sh
+
+      - name: Upload Gatling reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-reports
+          path: build/reports/gatling/
+          retention-days: 7
+
+      - name: Upload Gatling logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-logs
+          path: gatlingRunLogs.log
+          retention-days: 7
+
+      - name: Upload parsed report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parsed-report
+          path: |
+            gatling_stats.md
+            Report.json
+          retention-days: 7
+
+      - name: Print Gatling stats summary
+        if: always()
+        run: |
+          if [ -f gatling_stats.md ]; then
+            echo "## Gatling Performance Results" >> $GITHUB_STEP_SUMMARY
+            cat gatling_stats.md >> $GITHUB_STEP_SUMMARY
+          fi
