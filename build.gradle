@@ -23,7 +23,7 @@ application {
 
 sourceSets {
     gatling {
-        resources.srcDirs = ["resources", "src/main/java/data"]
+        resources.srcDirs = ["resources", "src/main/java/data", "src/main/resources"]
     }
 }
 

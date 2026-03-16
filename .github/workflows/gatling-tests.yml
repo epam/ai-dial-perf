@@ -109,6 +109,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Prepare users CSV file
+        run: |
+          mkdir -p src/main/resources/data
+          printf '%s\n' '${{ secrets.DIAL_ADMIN_USERS_FILE }}' > src/main/resources/data/azure-users.csv
+          if [ ! -s src/main/resources/data/azure-users.csv ]; then
+            echo "::error::DIAL_ADMIN_USERS_FILE secret is missing or empty. Add it in repo Settings > Secrets with CSV content (header: username,password)."
+            exit 1
+          fi
+
       - name: Run Gatling performance tests
         continue-on-error: true
         run: |
@@ -125,7 +134,7 @@ jobs:
             -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
             -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
             -DmodelEndpoint=$MODEL_ENDPOINT \
-            -DaiAdminUsersFile=${{ secrets.DIAL_ADMIN_USERS_FILE }} \
+            -DaiAdminUsersFile=data/azure-users.csv \
             -DdialAdminScope="${{ secrets.DIAL_ADMIN_SCOPE }}" \
             -DdialAdminClientId=${{ secrets.DIAL_ADMIN_CLIENT_ID }} \
             -DdialAdminClientSecret=${{ secrets.DIAL_ADMIN_CLIENT_SECRET }} \
