@@ -76,6 +76,18 @@ on:
         required: true
         default: "https://api.openai.com/v1gpt-4-turbo/chat/completions/"
         type: string
+      deployment_name:
+        description: "Deployment name (used for InfluxDB tagging)"
+        required: true
+        default: "ai-dial-admin"
+        type: string
+      env_name:
+        description: "Environment name (used for InfluxDB tagging)"
+        required: true
+        default: "Test"
+        type: choice
+        options:
+          - Test
 
 env:
   SIMULATION: ${{ github.event.inputs.simulation }}
@@ -91,6 +103,16 @@ env:
   MODEL_SYNC_ATTEMPTS: ${{ github.event.inputs.model_sync_attempts }}
   MODEL_SYNC_PAUSE_DURATION: ${{ github.event.inputs.model_sync_pause_duration }}
   MODEL_ENDPOINT: ${{ github.event.inputs.model_endpoint }}
+  DEPLOYMENT_NAME: ${{ github.event.inputs.deployment_name }}
+  ENV: ${{ github.event.inputs.env_name }}
+  INFLUX_HOST: "https://influxdb.gke.test.dial.parts"
+  INFLUX_ORG: "dial"
+  INFLUX_BUCKET: "statgpt"
+  TELEGRAF_LISTEN_PORT: "8087"
+  NGINX_X2I_PORT: "8088"
+  GATLING_RESULTS_DIR: "build/reports/gatling"
+  X2I_VERSION: "x2i-1.1.0-alpha-2"
+  TELEGRAF_VERSION: "1.33.0"
 
 jobs:
   gatling-test:
@@ -118,6 +140,18 @@ jobs:
             exit 1
           fi
 
+      - name: Install nginx, x2i, telegraf
+        run: |
+          chmod +x scripts/install_influx_pipeline.sh
+          ./scripts/install_influx_pipeline.sh
+
+      - name: Start Telegraf, nginx, x2i
+        run: |
+          chmod +x scripts/start_influx_pipeline.sh
+          ./scripts/start_influx_pipeline.sh
+        env:
+          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+
       - name: Run Gatling performance tests
         continue-on-error: true
         run: |
@@ -140,11 +174,48 @@ jobs:
             -DdialAdminClientSecret=${{ secrets.DIAL_ADMIN_CLIENT_SECRET }} \
             2>&1 | tee gatlingRunLogs.log
 
+      - name: Stop x2i
+        if: always()
+        run: |
+          if [ -f x2i.pid ]; then
+            X2I_PID=$(cat x2i.pid)
+            echo "Waiting 30s for x2i to flush remaining data..."
+            sleep 30
+            echo "Sending SIGINT to x2i (PID: ${X2I_PID})..."
+            kill -INT ${X2I_PID} 2>/dev/null || true
+            sleep 10
+            echo "x2i stopped"
+          fi
+
       - name: Parse Gatling report
         if: always()
         run: |
           chmod +x scripts/parse_gatling.sh
           ./scripts/parse_gatling.sh
+
+      - name: Send Report.json to InfluxDB
+        if: always()
+        env:
+          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          if [ -f Report.json ] && [ "$SIMULATION" == "LoadSimulation" ]; then
+            export ENV DEPLOYMENT_NAME SIMULATION SCENARIO_NAME BUILD USERS
+            echo "Converting Report.json to Influx line protocol (SCENARIO_NAME=$SCENARIO_NAME, ENV=$ENV)..."
+            chmod +x scripts/report_to_influx.sh
+            scripts/report_to_influx.sh Report.json Report.lineproto
+            echo "Sending Report.json to InfluxDB..."
+            curl -sS -X POST "$INFLUX_HOST/api/v2/write?org=$INFLUX_ORG&bucket=$INFLUX_BUCKET&precision=s" \
+              -H "Authorization: Token $INFLUX_TOKEN" \
+              -H "Content-Type: text/plain" \
+              --data-binary @Report.lineproto || echo "Failed to send Report.json to InfluxDB"
+          else
+            if [ ! -f Report.json ]; then
+              echo "Report.json file not found."
+            else
+              echo "SIMULATION is not a Load simulation; skipping InfluxDB upload."
+            fi
+          fi
 
       - name: Upload Gatling reports
         if: always()
@@ -170,7 +241,20 @@ jobs:
           path: |
             gatling_stats.md
             Report.json
+            Report.lineproto
           retention-days: 7
+
+      - name: Upload InfluxDB pipeline logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: influx-pipeline-logs
+          path: |
+            x2i.log
+            nginx.log
+            telegraf.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Print Gatling stats summary
         if: always()
