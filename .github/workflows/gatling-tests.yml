@@ -89,6 +89,13 @@ on:
         options:
           - Test
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
   SIMULATION: ${{ github.event.inputs.simulation }}
   SCENARIO_NAME: ${{ github.event.inputs.scenario_name }}
@@ -120,16 +127,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
       - name: Prepare users CSV file
         run: |
@@ -219,7 +226,7 @@ jobs:
 
       - name: Upload Gatling reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gatling-reports
           path: build/reports/gatling/
@@ -227,7 +234,7 @@ jobs:
 
       - name: Upload Gatling logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: gatling-logs
           path: gatlingRunLogs.log
@@ -235,7 +242,7 @@ jobs:
 
       - name: Upload parsed report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: parsed-report
           path: |
@@ -246,7 +253,7 @@ jobs:
 
       - name: Upload InfluxDB pipeline logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: influx-pipeline-logs
           path: |
