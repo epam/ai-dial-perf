@@ -59,7 +59,7 @@ on:
       admin_base_url:
         description: "AI Dial Admin base URL"
         required: true
-        default: "https://ai-dial-admin-test.imf-eid.projects.epam.com/"
+        default: "https://ai-dial-admin.example.com/"
         type: string
       model_sync_attempts:
         description: "Number of sync polling attempts"
@@ -112,7 +112,7 @@ env:
   MODEL_ENDPOINT: ${{ github.event.inputs.model_endpoint }}
   DEPLOYMENT_NAME: ${{ github.event.inputs.deployment_name }}
   ENV: ${{ github.event.inputs.env_name }}
-  INFLUX_HOST: "https://influxdb.gke.test.dial.parts"
+  INFLUX_HOST: "${{ secrets.INFLUX_HOST }}"
   INFLUX_ORG: "dial"
   INFLUX_BUCKET: "statgpt"
   TELEGRAF_LISTEN_PORT: "8087"

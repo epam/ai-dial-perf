@@ -55,7 +55,7 @@ The `azure-users.csv` file should be placed at `src/main/resources/data/azure-us
 | Parameter | Description | Default |
 |---|---|---|
 | `scenarioName` | Scenario to execute | `aiDialAdminCreateModelAPI` |
-| `aiAdminBaseUrl` | AI Dial Admin base URL | `https://ai-dial-admin-test.imf-eid.projects.epam.com/` |
+| `aiAdminBaseUrl` | AI Dial Admin base URL | `https:://ai-dial-admin.example.com/` |
 | `users` | Number of concurrent users | `10` |
 | `duration` | Test duration (e.g. 300s, 10m, 1h) | `600s` |
 | `durationRampUp` | Ramp-up duration | `20s` |
