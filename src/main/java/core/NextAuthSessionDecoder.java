@@ -36,8 +36,13 @@ public final class NextAuthSessionDecoder {
     private static final byte[] HKDF_INFO = "NextAuth.js Generated Encryption Key".getBytes(StandardCharsets.UTF_8);
 
     private static final String SESSION_COOKIE_PREFIX = "__Secure-next-auth.session-token";
+    private static final String SESSION_COOKIE_PREFIX_DOT = SESSION_COOKIE_PREFIX + ".";
 
     private static final String[] ACCESS_TOKEN_KEYS = {"access_token", "accessToken"};
+
+    /** Lazily cached AES-256 key derived via HKDF from the static NEXTAUTH_SECRET. */
+    private static volatile byte[] cachedEncryptionKey;
+    private static volatile String cachedEncryptionKeySecret;
 
     public static final String SYNTH_JWE_HEADER = "X-Gatling-NextAuth-Jwe";
     public static final String SYNTH_JSON_HEADER = "X-Gatling-NextAuth-Json";
@@ -53,7 +58,7 @@ public final class NextAuthSessionDecoder {
             return "";
         }
         try {
-            return decryptJwe(compactJwe.trim(), deriveNextAuthEncryptionKey(secret.getBytes(StandardCharsets.UTF_8)));
+            return decryptJwe(compactJwe.trim(), getOrDeriveEncryptionKey(secret));
         } catch (Exception e) {
             log.warn("NextAuth JWE decrypt failed: {}", e.getMessage());
             return "";
@@ -163,7 +168,9 @@ public final class NextAuthSessionDecoder {
             if (isBlank(line)) {
                 continue;
             }
-            String firstPair = line.split(";", 2)[0].trim();
+            // Use indexOf instead of split to avoid array allocation
+            int semi = line.indexOf(';');
+            String firstPair = (semi >= 0 ? line.substring(0, semi) : line).trim();
             int eq = firstPair.indexOf('=');
             if (eq <= 0) {
                 continue;
@@ -193,6 +200,21 @@ public final class NextAuthSessionDecoder {
 
     static byte[] deriveNextAuthEncryptionKey(byte[] secret) throws Exception {
         return hkdfExpand(hkdfExtract(secret), HKDF_INFO, 32);
+    }
+
+    /**
+     * Returns a cached AES key if the secret hasn't changed, otherwise derives and caches a new one.
+     * Safe under concurrent Gatling virtual users thanks to volatile + local-copy pattern.
+     */
+    private static byte[] getOrDeriveEncryptionKey(String secret) throws Exception {
+        byte[] key = cachedEncryptionKey;
+        if (key != null && secret.equals(cachedEncryptionKeySecret)) {
+            return key;
+        }
+        key = deriveNextAuthEncryptionKey(secret.getBytes(StandardCharsets.UTF_8));
+        cachedEncryptionKey = key;
+        cachedEncryptionKeySecret = secret;
+        return key;
     }
 
     /** Compact JWE: {@code dir} + {@code A256GCM}; AAD = US-ASCII bytes of part 0 (RFC 7516, matches jwcrypto). */
@@ -257,10 +279,9 @@ public final class NextAuthSessionDecoder {
         if (SESSION_COOKIE_PREFIX.equals(name)) {
             return 0;
         }
-        String prefix = SESSION_COOKIE_PREFIX + ".";
-        if (name.startsWith(prefix)) {
+        if (name.startsWith(SESSION_COOKIE_PREFIX_DOT)) {
             try {
-                return Integer.parseInt(name.substring(prefix.length()));
+                return Integer.parseInt(name.substring(SESSION_COOKIE_PREFIX_DOT.length()));
             } catch (NumberFormatException ignored) {
                 return -1;
             }

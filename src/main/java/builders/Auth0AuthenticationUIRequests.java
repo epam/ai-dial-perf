@@ -181,7 +181,7 @@ public class Auth0AuthenticationUIRequests {
 
     private static String buildChallengePayload(Session session) {
         String state = session.getString("auth0State");
-        return "{\"state\":\"%s\"}".formatted(state != null ? state : "");
+        return "{\"state\":\"%s\"}".formatted(jsonEscape(state));
     }
 
     private static String buildLoginPayload(Session session) {
@@ -218,18 +218,18 @@ public class Auth0AuthenticationUIRequests {
                 "protocol": "oauth2"
             }
             """.formatted(
-                DIAL_ADMIN_CLIENT_ID,
-                redirectUri,
-                auth0Tenant,
-                scope,
-                state != null ? state : "",
-                auth0Connection,
-                username != null ? username : "",
-                password != null ? password : "",
-                csrf != null ? csrf : "",
-                audience,
-                codeChallengeMethod,
-                codeChallenge
+                jsonEscape(DIAL_ADMIN_CLIENT_ID),
+                jsonEscape(redirectUri),
+                jsonEscape(auth0Tenant),
+                jsonEscape(scope),
+                jsonEscape(state),
+                jsonEscape(auth0Connection),
+                jsonEscape(username),
+                jsonEscape(password),
+                jsonEscape(csrf),
+                jsonEscape(audience),
+                jsonEscape(codeChallengeMethod),
+                jsonEscape(codeChallenge)
         );
     }
 
@@ -284,5 +284,18 @@ public class Auth0AuthenticationUIRequests {
             }
         }
         return null;
+    }
+
+    /**
+     * Escapes a string for safe interpolation inside a JSON double-quoted value.
+     * Returns an empty string for {@code null} input.
+     */
+    private static String jsonEscape(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }
