@@ -26,14 +26,14 @@ public class Requests {
         "\"type\":\"chat\"}";
 
         return http("Create Model API")
-                .post("api/v1/models")
+                .post("/api/v1/models")
                 .headers(Configs.DIAL_ADMIN_API_HEADERS)
                 .body(StringBody(payload));
     }
 
     public static HttpRequestActionBuilder getAllModelsAPI() {
         return http("Get all Models API")
-                .get("api/v1/models")
+                .get("/api/v1/models")
                 .headers(Configs.DIAL_ADMIN_API_HEADERS);
     }
 
@@ -45,7 +45,7 @@ public class Requests {
 
     public static HttpRequestActionBuilder syncModelStateAPI(String modelName) {
         return http("Sync Model State")
-                .get("api/v1/models/" + modelName + "/sync-state")
+                .get("/api/v1/models/" + modelName + "/sync-state")
                 .headers(Configs.DIAL_ADMIN_API_HEADERS)
                 .check(bodyString().saveAs("syncModelStateAPIResponseBody"))
                 .check(jsonPath("$.status").saveAs("syncModelStatus"));

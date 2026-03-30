@@ -16,7 +16,7 @@ public class Scenarios {
         return exec(Requests.getAllModelsAPI())
         .exec(session -> session.set("modelName", "perf_model_" + System.currentTimeMillis()))
         .exec(Requests.createModelAPI("#{modelName}"))
-        .exec(Requests.getModelDetailsAPI("#{modelName}"))
+       .exec(Requests.getModelDetailsAPI("#{modelName}"))
         .group("Sync Model State Total").on(
                 exec(Requests.syncModelStateAPI("#{modelName}"))
                 .exec(session -> {
@@ -78,5 +78,27 @@ public class Scenarios {
                 .doIf(AzureADAuthenticationUIRequests::needsManualCallback)
                 .then(exec(AzureADAuthenticationUIRequests.oauthCallbackManual()))
                 .exec(AzureADAuthenticationUIRequests.verifyAuthentication());
+    }
+
+    public static ScenarioBuilder aiDialAdminAuth0CreateModelScenario(int maxAttempts, int pauseDuration) {
+        return scenario("AI Dial Admin - Auth0 Auth + Create Model")
+                .exec(aiDialAdminAuth0UIAuthChain())
+                .exec(aiDialAdminCreateModelAPIChain(maxAttempts, pauseDuration));
+    }
+
+    public static ScenarioBuilder aiDialAdminAuth0UIAuthScenario() {
+        return scenario("AI Dial Admin - Auth0 UI Auth")
+                .exec(aiDialAdminAuth0UIAuthChain());
+    }
+
+    public static ChainBuilder aiDialAdminAuth0UIAuthChain() {
+        return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
+                .exec(Auth0AuthenticationUIRequests.navigateToSignIn())
+                .exec(Auth0AuthenticationUIRequests.initiateAuth0SignIn())
+                .exec(Auth0AuthenticationUIRequests::extractAuth0LoginParams)
+                .exec(Auth0AuthenticationUIRequests::prepareCsrfToken)
+                .exec(Auth0AuthenticationUIRequests.usernamePasswordChallenge())
+                .exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
+                .exec(Auth0AuthenticationUIRequests.loginCallback());
     }
 }

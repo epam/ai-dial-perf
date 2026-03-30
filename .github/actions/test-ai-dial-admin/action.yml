@@ -76,6 +76,26 @@ on:
         required: true
         default: "https://api.openai.com/v1gpt-4-turbo/chat/completions/"
         type: string
+      auth0_tenant:
+        description: "Auth0 tenant name (Auth0 UI login payload)"
+        required: true
+        default: "example"
+        type: string
+      auth0_connection:
+        description: "Auth0 database connection name (login JSON)"
+        required: true
+        default: "example"
+        type: string
+      auth0_audience:
+        description: "Auth0 audience when not taken from login URL"
+        required: true
+        default: "example"
+        type: string
+      dial_admin_auth0_domain:
+        description: "Auth0 hostname (no https), e.g. tenant.us.auth0.com"
+        required: true
+        default: "example.us.auth0.com"
+        type: string
       deployment_name:
         description: "Deployment name (used for InfluxDB tagging)"
         required: true
@@ -110,6 +130,10 @@ env:
   MODEL_SYNC_ATTEMPTS: ${{ github.event.inputs.model_sync_attempts }}
   MODEL_SYNC_PAUSE_DURATION: ${{ github.event.inputs.model_sync_pause_duration }}
   MODEL_ENDPOINT: ${{ github.event.inputs.model_endpoint }}
+  AUTH0_TENANT: ${{ github.event.inputs.auth0_tenant }}
+  AUTH0_CONNECTION: ${{ github.event.inputs.auth0_connection }}
+  AUTH0_AUDIENCE: ${{ github.event.inputs.auth0_audience }}
+  DIAL_ADMIN_AUTH0_DOMAIN_INPUT: ${{ github.event.inputs.dial_admin_auth0_domain }}
   DEPLOYMENT_NAME: ${{ github.event.inputs.deployment_name }}
   ENV: ${{ github.event.inputs.env_name }}
   INFLUX_HOST: "${{ secrets.INFLUX_HOST }}"
@@ -172,6 +196,10 @@ jobs:
             -DdurationRampUp=$DURATION_RAMP_UP \
             -DdurationRampDown=$DURATION_RAMP_DOWN \
             -DaiAdminBaseUrl=$ADMIN_BASE_URL \
+            -DdialAdminAuth0Domain=$DIAL_ADMIN_AUTH0_DOMAIN_INPUT \
+            -Dauth0Tenant=$AUTH0_TENANT \
+            -Dauth0Connection=$AUTH0_CONNECTION \
+            -Dauth0Audience=$AUTH0_AUDIENCE \
             -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
             -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
             -DmodelEndpoint=$MODEL_ENDPOINT \
@@ -179,6 +207,7 @@ jobs:
             -DdialAdminScope="${{ secrets.DIAL_ADMIN_SCOPE }}" \
             -DdialAdminClientId=${{ secrets.DIAL_ADMIN_CLIENT_ID }} \
             -DdialAdminClientSecret=${{ secrets.DIAL_ADMIN_CLIENT_SECRET }} \
+            -DnextAuthSecret="${{ secrets.NEXTAUTH_SECRET }}" \
             2>&1 | tee gatlingRunLogs.log
 
       - name: Stop x2i

@@ -12,6 +12,9 @@
     <!-- uncomment and set to TRACE to log all HTTP requests -->
     <logger name="io.gatling.http.engine.response" level="DEBUG" />
 
+    <!-- Scenario / request builders (INFO logs stay below root if root is ERROR) -->
+    <logger name="builders" level="INFO"/>
+    <logger name="core" level="INFO"/>
 
     <!-- root level "ERROR" or "INFO" -->
     <root level="ERROR">

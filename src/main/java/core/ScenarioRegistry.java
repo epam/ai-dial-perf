@@ -24,6 +24,10 @@ public class ScenarioRegistry {
         "aiDialAdminCreateModelAPI", new ScenarioConfig(
             () -> Scenarios.aiDialAdminCreateModelAPIScenario(modelSyncAttempts, modelSyncPauseDuration),
             aiAdminBaseUrl
+        ),
+        "aiDialAdminAuth0CreateModel", new ScenarioConfig(
+            () -> Scenarios.aiDialAdminAuth0CreateModelScenario(modelSyncAttempts, modelSyncPauseDuration),
+            aiAdminBaseUrl
         )
     );
 

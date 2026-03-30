@@ -17,16 +17,23 @@ public class PropertiesHolder {
     public static final String aiAdminBaseUrl = System.getProperty("aiAdminBaseUrl") != null ? System.getProperty("aiAdminBaseUrl") : "https://ai-dial-admin.example.com/";
     public static final String aiAdminUsersFile = System.getProperty("aiAdminUsersFile") != null ? System.getProperty("aiAdminUsersFile") : "data/azure-users.csv";
     public static final String azureTenantId = System.getProperty("azureTenantId") != null ? System.getProperty("azureTenantId") : "b41b72d0-4e9f-4c26-8a69-f949f367c91d";
+    public static final String auth0Tenant = System.getProperty("auth0Tenant") != null ? System.getProperty("auth0Tenant") : "aidial";
+    public static final String auth0Connection = System.getProperty("auth0Connection") != null ? System.getProperty("auth0Connection") : "test-gke-dial";
+    public static final String auth0AudienceProp = System.getProperty("auth0Audience") != null ? System.getProperty("auth0Audience") : "test_gke_dial";
     public static final int modelSyncAttempts = System.getProperty("modelSyncAttempts") != null ? Integer.parseInt(System.getProperty("modelSyncAttempts")) : 50;
     public static final int modelSyncPauseDuration = System.getProperty("modelSyncPauseDuration") != null ? Integer.parseInt(System.getProperty("modelSyncPauseDuration")) : 5;
     public static final String modelEndpoint = System.getProperty("modelEndpoint") != null ? System.getProperty("modelEndpoint") : "https://api.openai.com/v1gpt-4-turbo/chat/completions/";
     public static final String scenarioName = System.getProperty("scenarioName") != null ? System.getProperty("scenarioName") : "aiDialAdminCreateModelAPI";
     public static final boolean openModel = Boolean.parseBoolean(System.getProperty("openModel", "true"));
 
-//TODO: fix identity provider
     public static final String DIAL_ADMIN_SCOPE;
+    public static final String DIAL_ADMIN_AUTH0_DOMAIN;
     public static final String DIAL_ADMIN_CLIENT_ID;
     public static final String DIAL_ADMIN_CLIENT_SECRET;
+    public static final String NEXTAUTH_SECRET;
+    public static final String DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE;
+    public static final String DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN;
+
 
     static {
         Properties env = new Properties();
@@ -39,9 +46,13 @@ public class PropertiesHolder {
             System.err.println("Error reading .env file: " + e.getMessage());
         }
 
+        NEXTAUTH_SECRET = resolve(env, "nextAuthSecret", "NEXTAUTH_SECRET", "NEXTAUTH_SECRET", "nextAuthSecret");
         DIAL_ADMIN_SCOPE = resolve(env, "dialAdminScope", "DIAL_ADMIN_SCOPE", "DIAL_ADMIN_SCOPE", "scope");
-        DIAL_ADMIN_CLIENT_ID = resolve(env, "dialAdminClientId", "DIAL_ADMIN_CLIENT_ID", "DIAL_ADMIN_CLIENT_ID", "client_id", "clientId");
+        DIAL_ADMIN_AUTH0_DOMAIN = resolve(env, "dialAdminAuth0Domain", "DIAL_ADMIN_AUTH0_DOMAIN", "DIAL_ADMIN_AUTH0_DOMAIN", "AUTH_0_DOMAIN", "AUTH0_DOMAIN");
+        DIAL_ADMIN_CLIENT_ID = resolve(env, "dialAdminClientId", "DIAL_ADMIN_CLIENT_ID", "DIAL_ADMIN_CLIENT_ID", "client_id", "clientId", "auth0ClientId");
         DIAL_ADMIN_CLIENT_SECRET = resolve(env, "dialAdminClientSecret", "DIAL_ADMIN_CLIENT_SECRET", "DIAL_ADMIN_CLIENT_SECRET", "client_secret", "azure_client_secret");
+        DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE = resolve(env, "dialAdminAuth0ClientInfoChallenge", "DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE", "DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE", "AUTH0_CLIENT_INFO_CHALLENGE");
+        DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN = resolve(env, "dialAdminAuth0ClientInfoLogin", "DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN", "DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN", "AUTH0_CLIENT_INFO_LOGIN");
     }
 
     /**
