@@ -1,301 +1,254 @@
 name: AI Dial Admin Performance Tests
+description: Runs Gatling performance tests against AI Dial Admin with InfluxDB reporting
 
-on:
-  workflow_dispatch:
-    inputs:
-      simulation:
-        description: "Select the simulation type"
-        required: true
-        default: "DebugSimulation"
-        type: choice
-        options:
-          - DebugSimulation
-          - LoadSimulation
-      scenario_name:
-        description: "Select the scenario to run"
-        required: true
-        default: "aiDialAdminCreateModelAPI"
-        type: choice
-        options:
-          - aiDialAdminCreateModelAPI
-      open_model:
-        description: "Use open injection model (true) or closed (false)"
-        required: true
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-      users:
-        description: "Number of users (concurrent for closed, users/sec for open model)"
-        required: true
-        default: "1"
-        type: string
-      users_ramp_up_from:
-        description: "Starting number of users for ramp-up phase"
-        required: true
-        default: "0"
-        type: string
-      users_ramp_down_to:
-        description: "Ending number of users for ramp-down phase"
-        required: true
-        default: "0"
-        type: string
-      duration:
-        description: "Test duration (e.g. 300s, 10m, 1h)"
-        required: true
-        default: "300s"
-        type: string
-      duration_ramp_up:
-        description: "Ramp-up duration (e.g. 20s, 1m)"
-        required: true
-        default: "20s"
-        type: string
-      duration_ramp_down:
-        description: "Ramp-down duration (e.g. 20s, 1m)"
-        required: true
-        default: "20s"
-        type: string
-      admin_base_url:
-        description: "AI Dial Admin base URL"
-        required: true
-        default: "https://ai-dial-admin.example.com/"
-        type: string
-      model_sync_attempts:
-        description: "Number of sync polling attempts"
-        required: true
-        default: "25"
-        type: string
-      model_sync_pause_duration:
-        description: "Pause between sync attempts (seconds)"
-        required: true
-        default: "5"
-        type: string
-      model_endpoint:
-        description: "Model endpoint URL"
-        required: true
-        default: "https://api.openai.com/v1gpt-4-turbo/chat/completions/"
-        type: string
-      auth0_tenant:
-        description: "Auth0 tenant name (Auth0 UI login payload)"
-        required: true
-        default: "example"
-        type: string
-      auth0_connection:
-        description: "Auth0 database connection name (login JSON)"
-        required: true
-        default: "example"
-        type: string
-      auth0_audience:
-        description: "Auth0 audience when not taken from login URL"
-        required: true
-        default: "example"
-        type: string
-      dial_admin_auth0_domain:
-        description: "Auth0 hostname (no https), e.g. tenant.us.auth0.com"
-        required: true
-        default: "example.us.auth0.com"
-        type: string
-      deployment_name:
-        description: "Deployment name (used for InfluxDB tagging)"
-        required: true
-        default: "ai-dial-admin"
-        type: string
-      env_name:
-        description: "Environment name (used for InfluxDB tagging)"
-        required: true
-        default: "Test"
-        type: choice
-        options:
-          - Test
+inputs:
+  simulation:
+    description: "Simulation type: DebugSimulation or LoadSimulation"
+    default: "DebugSimulation"
+  scenario-name:
+    description: "Scenario to run (e.g. aiDialAdminCreateModelAPI)"
+    default: "aiDialAdminCreateModelAPI"
+  open-model:
+    description: "Use open injection model (true) or closed (false)"
+    default: "true"
+  users:
+    description: "Number of users (concurrent for closed, users/sec for open model)"
+    default: "1"
+  users-ramp-up-from:
+    description: "Starting number of users for ramp-up phase"
+    default: "0"
+  users-ramp-down-to:
+    description: "Ending number of users for ramp-down phase"
+    default: "0"
+  duration:
+    description: "Test duration (e.g. 300s, 10m, 1h)"
+    default: "300s"
+  duration-ramp-up:
+    description: "Ramp-up duration (e.g. 20s, 1m)"
+    default: "20s"
+  duration-ramp-down:
+    description: "Ramp-down duration (e.g. 20s, 1m)"
+    default: "20s"
+  admin-base-url:
+    description: "AI Dial Admin base URL"
+    default: "https://admin-${{ github.event.client_payload.slash_command.args.named.application }}-pr-${{ github.event.client_payload.pull_request.number }}.${{ secrets.REVIEW_BASE_DOMAIN }}"
+  model-sync-attempts:
+    description: "Number of sync polling attempts"
+    default: "25"
+  model-sync-pause-duration:
+    description: "Pause between sync attempts (seconds)"
+    default: "5"
+  model-endpoint:
+    description: "Model endpoint URL"
+    default: "https://api.openai.com/v1/gpt-4-turbo/chat/completions/"
+  deployment-name:
+    description: "Deployment name (used for InfluxDB tagging)"
+    default: "ai-dial-admin"
+  env-name:
+    description: "Environment name (used for InfluxDB tagging)"
+    default: "Test"
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-permissions:
-  contents: read
+    - name: Set up JDK 17
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+      with:
+        distribution: temurin
+        java-version: "17"
 
-env:
-  SIMULATION: ${{ github.event.inputs.simulation }}
-  SCENARIO_NAME: ${{ github.event.inputs.scenario_name }}
-  OPEN_MODEL: ${{ github.event.inputs.open_model }}
-  USERS: ${{ github.event.inputs.users }}
-  USERS_RAMP_UP_FROM: ${{ github.event.inputs.users_ramp_up_from }}
-  USERS_RAMP_DOWN_TO: ${{ github.event.inputs.users_ramp_down_to }}
-  DURATION: ${{ github.event.inputs.duration }}
-  DURATION_RAMP_UP: ${{ github.event.inputs.duration_ramp_up }}
-  DURATION_RAMP_DOWN: ${{ github.event.inputs.duration_ramp_down }}
-  ADMIN_BASE_URL: ${{ github.event.inputs.admin_base_url }}
-  MODEL_SYNC_ATTEMPTS: ${{ github.event.inputs.model_sync_attempts }}
-  MODEL_SYNC_PAUSE_DURATION: ${{ github.event.inputs.model_sync_pause_duration }}
-  MODEL_ENDPOINT: ${{ github.event.inputs.model_endpoint }}
-  AUTH0_TENANT: ${{ github.event.inputs.auth0_tenant }}
-  AUTH0_CONNECTION: ${{ github.event.inputs.auth0_connection }}
-  AUTH0_AUDIENCE: ${{ github.event.inputs.auth0_audience }}
-  DIAL_ADMIN_AUTH0_DOMAIN_INPUT: ${{ github.event.inputs.dial_admin_auth0_domain }}
-  DEPLOYMENT_NAME: ${{ github.event.inputs.deployment_name }}
-  ENV: ${{ github.event.inputs.env_name }}
-  INFLUX_HOST: "${{ secrets.INFLUX_HOST }}"
-  INFLUX_ORG: "dial"
-  INFLUX_BUCKET: "statgpt"
-  TELEGRAF_LISTEN_PORT: "8087"
-  NGINX_X2I_PORT: "8088"
-  GATLING_RESULTS_DIR: "build/reports/gatling"
-  X2I_VERSION: "x2i-1.1.0-alpha-2"
-  TELEGRAF_VERSION: "1.33.0"
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
-jobs:
-  gatling-test:
-    name: Run Gatling Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+    - name: Prepare users CSV file
+      run: |
+        mkdir -p src/main/resources/data
+        printf '%s\n' "$DIAL_ADMIN_USERS_FILE" > src/main/resources/data/azure-users.csv
+        if [ ! -s src/main/resources/data/azure-users.csv ]; then
+          echo "::error::DIAL_ADMIN_USERS_FILE env var is missing or empty. Pass CSV content (header: username,password)."
+          exit 1
+        fi
+      shell: bash
+      env:
+        DIAL_ADMIN_USERS_FILE: ${{ env.DIAL_ADMIN_USERS_FILE }}
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
-        with:
-          distribution: temurin
-          java-version: "17"
+    - name: Install nginx, x2i, telegraf
+      run: |
+        chmod +x scripts/install_influx_pipeline.sh
+        ./scripts/install_influx_pipeline.sh
+      shell: bash
+      env:
+        X2I_VERSION: x2i-1.1.0-alpha-2
+        TELEGRAF_VERSION: "1.33.0"
+        TELEGRAF_LISTEN_PORT: "8087"
+        NGINX_X2I_PORT: "8088"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+    - name: Start Telegraf, nginx, x2i
+      run: |
+        chmod +x scripts/start_influx_pipeline.sh
+        ./scripts/start_influx_pipeline.sh
+      shell: bash
+      env:
+        INFLUX_TOKEN: ${{ env.INFLUX_TOKEN }}
+        INFLUX_HOST: ${{ env.INFLUX_HOST }}
+        INFLUX_ORG: ${{ env.INFLUX_ORG }}
+        INFLUX_BUCKET: ${{ env.INFLUX_BUCKET }}
+        TELEGRAF_LISTEN_PORT: "8087"
+        NGINX_X2I_PORT: "8088"
 
-      - name: Prepare users CSV file
-        run: |
-          mkdir -p src/main/resources/data
-          printf '%s\n' '${{ secrets.DIAL_ADMIN_USERS_FILE }}' > src/main/resources/data/azure-users.csv
-          if [ ! -s src/main/resources/data/azure-users.csv ]; then
-            echo "::error::DIAL_ADMIN_USERS_FILE secret is missing or empty. Add it in repo Settings > Secrets with CSV content (header: username,password)."
-            exit 1
-          fi
+    - name: Run Gatling performance tests
+      continue-on-error: true
+      run: |
+        gradle gatlingRun --simulation=$SIMULATION \
+          -DscenarioName=$SCENARIO_NAME \
+          -DopenModel=$OPEN_MODEL \
+          -Dusers=$USERS \
+          -DusersRampUpFrom=$USERS_RAMP_UP_FROM \
+          -DusersRampDownTo=$USERS_RAMP_DOWN_TO \
+          -Dduration=$DURATION \
+          -DdurationRampUp=$DURATION_RAMP_UP \
+          -DdurationRampDown=$DURATION_RAMP_DOWN \
+          -DaiAdminBaseUrl=$ADMIN_BASE_URL \
+          -DdialAdminAuth0Domain=$DIAL_ADMIN_AUTH0_DOMAIN_INPUT \
+          -Dauth0Tenant=$AUTH0_TENANT \
+          -Dauth0Connection=$AUTH0_CONNECTION \
+          -Dauth0Audience=$AUTH0_AUDIENCE \
+          -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
+          -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
+          -DmodelEndpoint=$MODEL_ENDPOINT \
+          -DaiAdminUsersFile=data/azure-users.csv \
+          -DdialAdminScope="$DIAL_ADMIN_SCOPE" \
+          -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
+          -DdialAdminClientSecret=$DIAL_ADMIN_CLIENT_SECRET \
+          -DnextAuthSecret="$NEXTAUTH_SECRET" \
+          2>&1 | tee gatlingRunLogs.log
+      shell: bash
+      env:
+        SIMULATION: ${{ inputs.simulation }}
+        SCENARIO_NAME: ${{ inputs.scenario-name }}
+        OPEN_MODEL: ${{ inputs.open-model }}
+        USERS: ${{ inputs.users }}
+        USERS_RAMP_UP_FROM: ${{ inputs.users-ramp-up-from }}
+        USERS_RAMP_DOWN_TO: ${{ inputs.users-ramp-down-to }}
+        DURATION: ${{ inputs.duration }}
+        DURATION_RAMP_UP: ${{ inputs.duration-ramp-up }}
+        DURATION_RAMP_DOWN: ${{ inputs.duration-ramp-down }}
+        ADMIN_BASE_URL: ${{ inputs.admin-base-url }}
+        MODEL_SYNC_ATTEMPTS: ${{ inputs.model-sync-attempts }}
+        MODEL_SYNC_PAUSE_DURATION: ${{ inputs.model-sync-pause-duration }}
+        MODEL_ENDPOINT: ${{ inputs.model-endpoint }}
+        AUTH0_TENANT: ${{ env.AUTH0_TENANT }}
+        AUTH0_CONNECTION: ${{ env.AUTH0_CONNECTION }}
+        AUTH0_AUDIENCE: ${{ env.AUTH0_AUDIENCE }}
+        DIAL_ADMIN_AUTH0_DOMAIN_INPUT: ${{ env.DIAL_ADMIN_AUTH0_DOMAIN_INPUT }}
+        DIAL_ADMIN_SCOPE: ${{ env.DIAL_ADMIN_SCOPE }}
+        DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
+        DIAL_ADMIN_CLIENT_SECRET: ${{ env.DIAL_ADMIN_CLIENT_SECRET }}
+        NEXTAUTH_SECRET: ${{ env.NEXTAUTH_SECRET }}
 
-      - name: Install nginx, x2i, telegraf
-        run: |
-          chmod +x scripts/install_influx_pipeline.sh
-          ./scripts/install_influx_pipeline.sh
+    - name: Stop x2i
+      if: always()
+      run: |
+        if [ -f x2i.pid ]; then
+          X2I_PID=$(cat x2i.pid)
+          echo "Waiting 30s for x2i to flush remaining data..."
+          sleep 30
+          echo "Sending SIGINT to x2i (PID: ${X2I_PID})..."
+          kill -INT ${X2I_PID} 2>/dev/null || true
+          sleep 10
+          echo "x2i stopped"
+        fi
+      shell: bash
 
-      - name: Start Telegraf, nginx, x2i
-        run: |
-          chmod +x scripts/start_influx_pipeline.sh
-          ./scripts/start_influx_pipeline.sh
-        env:
-          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+    - name: Parse Gatling report
+      if: always()
+      run: |
+        chmod +x scripts/parse_gatling.sh
+        ./scripts/parse_gatling.sh
+      shell: bash
+      env:
+        GATLING_RESULTS_DIR: build/reports/gatling
 
-      - name: Run Gatling performance tests
-        continue-on-error: true
-        run: |
-          gradle gatlingRun --simulation=$SIMULATION \
-            -DscenarioName=$SCENARIO_NAME \
-            -DopenModel=$OPEN_MODEL \
-            -Dusers=$USERS \
-            -DusersRampUpFrom=$USERS_RAMP_UP_FROM \
-            -DusersRampDownTo=$USERS_RAMP_DOWN_TO \
-            -Dduration=$DURATION \
-            -DdurationRampUp=$DURATION_RAMP_UP \
-            -DdurationRampDown=$DURATION_RAMP_DOWN \
-            -DaiAdminBaseUrl=$ADMIN_BASE_URL \
-            -DdialAdminAuth0Domain=$DIAL_ADMIN_AUTH0_DOMAIN_INPUT \
-            -Dauth0Tenant=$AUTH0_TENANT \
-            -Dauth0Connection=$AUTH0_CONNECTION \
-            -Dauth0Audience=$AUTH0_AUDIENCE \
-            -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
-            -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
-            -DmodelEndpoint=$MODEL_ENDPOINT \
-            -DaiAdminUsersFile=data/azure-users.csv \
-            -DdialAdminScope="${{ secrets.DIAL_ADMIN_SCOPE }}" \
-            -DdialAdminClientId=${{ secrets.DIAL_ADMIN_CLIENT_ID }} \
-            -DdialAdminClientSecret=${{ secrets.DIAL_ADMIN_CLIENT_SECRET }} \
-            -DnextAuthSecret="${{ secrets.NEXTAUTH_SECRET }}" \
-            2>&1 | tee gatlingRunLogs.log
-
-      - name: Stop x2i
-        if: always()
-        run: |
-          if [ -f x2i.pid ]; then
-            X2I_PID=$(cat x2i.pid)
-            echo "Waiting 30s for x2i to flush remaining data..."
-            sleep 30
-            echo "Sending SIGINT to x2i (PID: ${X2I_PID})..."
-            kill -INT ${X2I_PID} 2>/dev/null || true
-            sleep 10
-            echo "x2i stopped"
-          fi
-
-      - name: Parse Gatling report
-        if: always()
-        run: |
-          chmod +x scripts/parse_gatling.sh
-          ./scripts/parse_gatling.sh
-
-      - name: Send Report.json to InfluxDB
-        if: always()
-        env:
-          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
-          BUILD: ${{ github.run_number }}
-        run: |
-          if [ -f Report.json ] && [ "$SIMULATION" == "LoadSimulation" ]; then
-            export ENV DEPLOYMENT_NAME SIMULATION SCENARIO_NAME BUILD USERS
-            echo "Converting Report.json to Influx line protocol (SCENARIO_NAME=$SCENARIO_NAME, ENV=$ENV)..."
-            chmod +x scripts/report_to_influx.sh
-            scripts/report_to_influx.sh Report.json Report.lineproto
-            echo "Sending Report.json to InfluxDB..."
-            curl -sS -X POST "$INFLUX_HOST/api/v2/write?org=$INFLUX_ORG&bucket=$INFLUX_BUCKET&precision=s" \
-              -H "Authorization: Token $INFLUX_TOKEN" \
-              -H "Content-Type: text/plain" \
-              --data-binary @Report.lineproto || echo "Failed to send Report.json to InfluxDB"
+    - name: Send Report.json to InfluxDB
+      if: always()
+      run: |
+        if [ -f Report.json ] && [ "$SIMULATION" == "LoadSimulation" ]; then
+          export ENV DEPLOYMENT_NAME SIMULATION SCENARIO_NAME BUILD USERS
+          echo "Converting Report.json to Influx line protocol (SCENARIO_NAME=$SCENARIO_NAME, ENV=$ENV)..."
+          chmod +x scripts/report_to_influx.sh
+          scripts/report_to_influx.sh Report.json Report.lineproto
+          echo "Sending Report.json to InfluxDB..."
+          curl -sS -X POST "$INFLUX_HOST/api/v2/write?org=$INFLUX_ORG&bucket=$INFLUX_BUCKET&precision=s" \
+            -H "Authorization: Token $INFLUX_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data-binary @Report.lineproto || echo "Failed to send Report.json to InfluxDB"
+        else
+          if [ ! -f Report.json ]; then
+            echo "Report.json file not found."
           else
-            if [ ! -f Report.json ]; then
-              echo "Report.json file not found."
-            else
-              echo "SIMULATION is not a Load simulation; skipping InfluxDB upload."
-            fi
+            echo "SIMULATION is not a Load simulation; skipping InfluxDB upload."
           fi
+        fi
+      shell: bash
+      env:
+        INFLUX_TOKEN: ${{ env.INFLUX_TOKEN }}
+        INFLUX_HOST: ${{ env.INFLUX_HOST }}
+        INFLUX_ORG: ${{ env.INFLUX_ORG }}
+        INFLUX_BUCKET: ${{ env.INFLUX_BUCKET }}
+        SIMULATION: ${{ inputs.simulation }}
+        SCENARIO_NAME: ${{ inputs.scenario-name }}
+        DEPLOYMENT_NAME: ${{ inputs.deployment-name }}
+        ENV: ${{ inputs.env-name }}
+        USERS: ${{ inputs.users }}
+        BUILD: ${{ github.run_number }}
 
-      - name: Upload Gatling reports
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: gatling-reports
-          path: build/reports/gatling/
-          retention-days: 7
+    - name: Upload Gatling reports
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: gatling-reports
+        path: build/reports/gatling/
+        retention-days: 7
 
-      - name: Upload Gatling logs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: gatling-logs
-          path: gatlingRunLogs.log
-          retention-days: 7
+    - name: Upload Gatling logs
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: gatling-logs
+        path: gatlingRunLogs.log
+        retention-days: 7
 
-      - name: Upload parsed report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: parsed-report
-          path: |
-            gatling_stats.md
-            Report.json
-            Report.lineproto
-          retention-days: 7
+    - name: Upload parsed report
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: parsed-report
+        path: |
+          gatling_stats.md
+          Report.json
+          Report.lineproto
+        retention-days: 7
 
-      - name: Upload InfluxDB pipeline logs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: influx-pipeline-logs
-          path: |
-            x2i.log
-            nginx.log
-            telegraf.log
-          retention-days: 7
-          if-no-files-found: ignore
+    - name: Upload InfluxDB pipeline logs
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: influx-pipeline-logs
+        path: |
+          x2i.log
+          nginx.log
+          telegraf.log
+        retention-days: 7
+        if-no-files-found: ignore
 
-      - name: Print Gatling stats summary
-        if: always()
-        run: |
-          if [ -f gatling_stats.md ]; then
-            echo "## Gatling Performance Results" >> $GITHUB_STEP_SUMMARY
-            cat gatling_stats.md >> $GITHUB_STEP_SUMMARY
-          fi
+    - name: Print Gatling stats summary
+      if: always()
+      run: |
+        if [ -f gatling_stats.md ]; then
+          echo "## Gatling Performance Results" >> $GITHUB_STEP_SUMMARY
+          cat gatling_stats.md >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
