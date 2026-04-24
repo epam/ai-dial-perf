@@ -10,7 +10,7 @@ sanitize_numeric() {
 }
 
 # Define the base directory where the Gatling reports are located
-base_dir="build/reports/gatling"
+base_dir="${GATLING_RESULTS_DIR:-build/reports/gatling}"
 
 # Find the full path of the `index.html` file
 REPORT=$(find "$base_dir" -type f -name "index.html" | head -n 1)

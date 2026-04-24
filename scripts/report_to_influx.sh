@@ -14,7 +14,7 @@ if [ ! -f "$REPORT_PATH" ]; then
   exit 1
 fi
 
-ENVIRONMENT_TAG=${ENV:-unknown}
+ENVIRONMENT_TAG=${ENV_NAME:-unknown}
 DEPLOYMENT_TAG=${DEPLOYMENT_NAME:-unknown}
 SIMULATION_TAG=${SIMULATION:-unknown}
 BUILD_TAG=${BUILD:-unknown}
