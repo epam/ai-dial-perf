@@ -1,17 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: "docker"
-    directories:
-      - "**/*"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "09:00"
-    commit-message:
-      prefix: "chore"
-    open-pull-requests-limit: 10
-    cooldown:
-      default-days: 7
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
