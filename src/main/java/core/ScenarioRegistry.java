@@ -21,10 +21,6 @@ public class ScenarioRegistry {
     }
 
     private static final Map<String, ScenarioConfig> REGISTRY = Map.of(
-        "aiDialAdminCreateModelAPI", new ScenarioConfig(
-            () -> Scenarios.aiDialAdminCreateModelAPIScenario(modelSyncAttempts, modelSyncPauseDuration),
-            aiAdminBaseUrl
-        ),
         "aiDialAdminAuth0CreateModel", new ScenarioConfig(
             () -> Scenarios.aiDialAdminAuth0CreateModelScenario(modelSyncAttempts, modelSyncPauseDuration),
             aiAdminBaseUrl

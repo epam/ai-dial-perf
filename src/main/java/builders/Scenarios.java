@@ -45,17 +45,6 @@ public class Scenarios {
                 })));
     }
 
-    public static ScenarioBuilder aiDialAdminCreateModelAPIScenario(int maxAttempts, int pauseDuration) {
-        return scenario("AI Dial Admin - AD Auth + Create Model")
-                .exec(aiDialAdminADAPIAuthChain())
-                .exec(aiDialAdminCreateModelAPIChain(maxAttempts, pauseDuration));
-    }
-
-    public static ChainBuilder aiDialAdminADAPIAuthChain() {
-        return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
-                .exec(Requests.dialAdminADAPIAuth());
-    }
-
     public static ChainBuilder aiDialAdminUIAuthChain() {
         return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
                 .exec(session -> session.set("hpgrequestid", java.util.UUID.randomUUID().toString()))

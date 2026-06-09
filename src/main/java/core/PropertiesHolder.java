@@ -29,7 +29,6 @@ public class PropertiesHolder {
     public static final String DIAL_ADMIN_SCOPE;
     public static final String DIAL_ADMIN_AUTH0_DOMAIN;
     public static final String DIAL_ADMIN_CLIENT_ID;
-    public static final String DIAL_ADMIN_CLIENT_SECRET;
     public static final String NEXTAUTH_SECRET;
     public static final String DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE;
     public static final String DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN;
@@ -50,7 +49,6 @@ public class PropertiesHolder {
         DIAL_ADMIN_SCOPE = resolve(env, "dialAdminScope", "DIAL_ADMIN_SCOPE", "DIAL_ADMIN_SCOPE", "scope");
         DIAL_ADMIN_AUTH0_DOMAIN = resolve(env, "dialAdminAuth0Domain", "DIAL_ADMIN_AUTH0_DOMAIN", "DIAL_ADMIN_AUTH0_DOMAIN", "AUTH_0_DOMAIN", "AUTH0_DOMAIN");
         DIAL_ADMIN_CLIENT_ID = resolve(env, "dialAdminClientId", "DIAL_ADMIN_CLIENT_ID", "DIAL_ADMIN_CLIENT_ID", "client_id", "clientId", "auth0ClientId");
-        DIAL_ADMIN_CLIENT_SECRET = resolve(env, "dialAdminClientSecret", "DIAL_ADMIN_CLIENT_SECRET", "DIAL_ADMIN_CLIENT_SECRET", "client_secret", "azure_client_secret");
         DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE = resolve(env, "dialAdminAuth0ClientInfoChallenge", "DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE", "DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE", "AUTH0_CLIENT_INFO_CHALLENGE");
         DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN = resolve(env, "dialAdminAuth0ClientInfoLogin", "DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN", "DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN", "AUTH0_CLIENT_INFO_LOGIN");
     }

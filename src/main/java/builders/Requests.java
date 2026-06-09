@@ -51,19 +51,6 @@ public class Requests {
                 .check(jsonPath("$.status").saveAs("syncModelStatus"));
     }
 
-    public static HttpRequestActionBuilder dialAdminADAPIAuth() {
-        return http("DialAdminADAuth")
-                .post("https://login.microsoftonline.com/organizations/oauth2/v2.0/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .formParam("grant_type", "password")
-                .formParam("scope", PropertiesHolder.DIAL_ADMIN_SCOPE)
-                .formParam("client_secret", PropertiesHolder.DIAL_ADMIN_CLIENT_SECRET)
-                .formParam("client_id", PropertiesHolder.DIAL_ADMIN_CLIENT_ID)
-                .formParam("username", "#{username}")
-                .formParam("password", "#{password}")
-                .check(jsonPath("$.access_token").saveAs("dialAdminAccessToken"));
-    }
-
     /*
     ***************************************************************
     * TEMPORARY UNUSED METHODS FOR AI Dial Admin UI model creation

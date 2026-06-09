@@ -132,7 +132,6 @@ runs:
           -DaiAdminUsersFile=data/azure-users.csv \
           -DdialAdminScope="$DIAL_ADMIN_SCOPE" \
           -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
-          -DdialAdminClientSecret=$DIAL_ADMIN_CLIENT_SECRET \
           -DnextAuthSecret="$NEXTAUTH_SECRET" \
           2>&1 | tee gatlingRunLogs.log
       shell: bash
@@ -157,7 +156,6 @@ runs:
         AUTH0_AUDIENCE: test_gke_dial
         DIAL_ADMIN_SCOPE: ""
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
-        DIAL_ADMIN_CLIENT_SECRET: ${{ env.DIAL_ADMIN_CLIENT_SECRET }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
       continue-on-error: true
 

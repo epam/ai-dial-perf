@@ -21,7 +21,6 @@ Create a `.env` file or export the following:
 ```
 DIAL_ADMIN_SCOPE=<Azure AD scope>
 DIAL_ADMIN_CLIENT_ID=<Azure AD client ID>
-DIAL_ADMIN_CLIENT_SECRET=<Azure AD client secret>
 ```
 
 The `azure-users.csv` file should be placed at `src/main/resources/data/azure-users.csv` with columns: `username,password`.
