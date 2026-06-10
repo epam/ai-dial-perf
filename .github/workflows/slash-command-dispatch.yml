@@ -21,12 +21,11 @@ jobs:
             [
               {
                 "command": "deploy-review",
-                "permission": "write",
                 "issue_type": "pull-request",
                 "repository": "epam/ai-dial-ci",
                 "static_args": [
-                  "application=ai-dial-chat-themes", # HACK: define whatever fastest to build application, not needed for trigger from test repository
-                  "test-applications=admin:${{ github.repository }}"
+                  "application=${{ github.event.repository.name }}",
+                  "test-applications=ai-dial-admin:epam/ai-dial-admin-perf"
                 ]
               }
             ]
