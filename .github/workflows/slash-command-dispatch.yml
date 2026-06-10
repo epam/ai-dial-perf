@@ -24,7 +24,7 @@ jobs:
                 "issue_type": "pull-request",
                 "repository": "epam/ai-dial-ci",
                 "static_args": [
-                  "application=${{ github.event.repository.name }}",
+                  "application=ai-dial-chat-themes",
                   "test-applications=ai-dial-admin:epam/ai-dial-admin-perf"
                 ]
               }
