@@ -47,6 +47,7 @@ The `azure-users.csv` file should be placed at `src/main/resources/data/azure-us
   -Dduration=10m \
   -DdurationRampUp=1m \
   -DdurationRampDown=30s
+
 ```
 
 ## Configuration Parameters
