@@ -13,17 +13,42 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 - JDK 17+
 - Gradle 8.5+
 - Azure AD credentials for Dial Admin users
+- Python 3.9+ (only for the [MCP deployment script](#mcp-container-deployment-script-python))
 
 ## Environment Variables
 
-Create a `.env` file or export the following:
+A `.env` file in the **project root** is auto-loaded by both the Gatling
+framework and the [MCP deployment script](#mcp-container-deployment-script-python).
+Create it with the following keys:
 
 ```
-DIAL_ADMIN_SCOPE=<Azure AD scope>
-DIAL_ADMIN_CLIENT_ID=<Azure AD client ID>
+# --- Auth (used by Gatling + MCP deploy script) ---
+NEXTAUTH_SECRET=<nextauth-secret>          # secret used to decrypt the NextAuth session cookie
+DIAL_ADMIN_CLIENT_ID=<Azure AD / Auth0 client ID>
+
+# --- Base URLs (used by the MCP deploy script) ---
+URL_ADMIN=https://<admin-app-host>          # Admin app base URL (Auth0 login)
+URL_DEPLOY_SERVICE=https://<deployment-manager-host>   # deployment-manager API base URL
 ```
 
-The `azure-users.csv` file should be placed at `src/main/resources/data/azure-users.csv` with columns: `username,password`.
+| Variable | Used by | Description |
+|---|---|---|
+| `NEXTAUTH_SECRET` | Gatling + deploy script | Secret that derives the NextAuth cookie-decryption key |
+| `DIAL_ADMIN_CLIENT_ID` | Gatling + deploy script | Azure AD / Auth0 client ID |
+| `URL_ADMIN` | Deploy script | Admin app base URL (Auth0 login) |
+| `URL_DEPLOY_SERVICE` | Deploy script | Deployment-manager API base URL |
+
+> The `.env` file is git-ignored — never commit real secrets.
+
+### User credentials
+
+For Auth0/Azure usernames and passwords the `azure-users.csv` file should be placed at `src/main/resources/data/azure-users.
+csv` with columns: `username,password`.
+
+```csv
+username,password
+dial_admin@example.com,<password>
+```
 
 ## Running Tests Locally
 
@@ -48,6 +73,58 @@ The `azure-users.csv` file should be placed at `src/main/resources/data/azure-us
   -DdurationRampUp=1m \
   -DdurationRampDown=30s
 ```
+
+## MCP Container Deployment Script (Python)
+
+`scripts/DeployApp/run_mcp_container.py` is a self-contained Python tool that
+builds an MCP image and **runs (deploys)** a container against the deployment
+manager. It never stops/undeploys the container — it leaves it running.
+
+What it does:
+
+1. Logs into the DIAL Admin app via Auth0 using a pure-HTTP flow (no browser)
+   and decrypts the NextAuth session cookie into a bearer token.
+2. Creates an MCP image definition and builds it (waits for `BUILD_SUCCESSFUL`).
+3. Creates an MCP deployment (container) from that image.
+4. Deploys the container and waits until its status is `running`.
+
+The logic is split into focused modules so the entry point stays thin:
+
+| File | Responsibility |
+|---|---|
+| `run_mcp_container.py` | CLI parsing + orchestration (the file you run) |
+| `config.py` | `.env` loading, env resolution, `Config` dataclass, users-CSV reader |
+| `auth.py` | Pure-HTTP Auth0 login → decrypted bearer token |
+| `api.py` | `DeploymentApi` HTTP client (pooled + retrying) |
+| `workflow.py` | Create/build image, create/run deployment, cleanup |
+| `constants.py` | Shared constants / API payload defaults / Auth0 defaults |
+
+### Prerequisites
+
+- Python 3.9+
+- The project-root `.env` populated with `URL_ADMIN`, `URL_DEPLOY_SERVICE`,
+  `NEXTAUTH_SECRET` (see [Environment Variables](#environment-variables))
+- Credentials in `src/main/resources/data/azure-users.csv`
+
+### Setup
+
+```bash
+cd scripts/DeployApp
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Execution
+
+```bash
+cd scripts/DeployApp
+python run_mcp_container.py
+```
+
+Optional env: `DIAL_ADMIN_CLIENT_ID` (auto-derived from the login page when
+omitted) and `AZURE_USERS_FILE` (override the users-CSV location; defaults to
+`data/azure-users.csv` under `src/main/resources`).
 
 ## Configuration Parameters
 
