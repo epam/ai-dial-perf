@@ -26,6 +26,22 @@ public class PropertiesHolder {
     public static final String scenarioName = System.getProperty("scenarioName") != null ? System.getProperty("scenarioName") : "aiDialAdminCreateModelAPI";
     public static final boolean openModel = Boolean.parseBoolean(System.getProperty("openModel", "true"));
 
+    // DIAL Core admin (Api-Key authenticated) endpoints
+    public static final String dialCoreBaseUrl = System.getProperty("dialCoreBaseUrl") != null ? System.getProperty("dialCoreBaseUrl") : "";
+    public static final String dialCoreApiKey = System.getProperty("dialCoreApiKey") != null ? System.getProperty("dialCoreApiKey") : "";
+    public static final String appBucket = System.getProperty("appBucket") != null ? System.getProperty("appBucket") : "";
+    public static final String appName = System.getProperty("appName") != null ? System.getProperty("appName") : "";
+    public static final String applicationSchemaId = System.getProperty("applicationSchemaId") != null ? System.getProperty("applicationSchemaId") : "";
+    public static final String toolsetBucket = System.getProperty("toolsetBucket") != null ? System.getProperty("toolsetBucket") : "";
+    public static final String toolsetName = System.getProperty("toolsetName") != null ? System.getProperty("toolsetName") : "";
+    public static final String toolsetPath = System.getProperty("toolsetPath") != null ? System.getProperty("toolsetPath") : "";
+    public static final String toolsetEndpoint = System.getProperty("toolsetEndpoint") != null ? System.getProperty("toolsetEndpoint") : "";
+    public static final String promptBucket = System.getProperty("promptBucket") != null ? System.getProperty("promptBucket") : "";
+    public static final String promptName = System.getProperty("promptName") != null ? System.getProperty("promptName") : "";
+    public static final String promptDisplayName = System.getProperty("promptDisplayName") != null ? System.getProperty("promptDisplayName") : "";
+    public static final String fileBucket = System.getProperty("fileBucket") != null ? System.getProperty("fileBucket") : "";
+    public static final String fileName = System.getProperty("fileName") != null ? System.getProperty("fileName") : "";
+
     public static final String DIAL_ADMIN_SCOPE;
     public static final String DIAL_ADMIN_AUTH0_DOMAIN;
     public static final String DIAL_ADMIN_CLIENT_ID;

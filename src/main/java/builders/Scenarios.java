@@ -80,6 +80,76 @@ public class Scenarios {
                 .exec(aiDialAdminAuth0UIAuthChain());
     }
 
+    public static ChainBuilder aiDialApplicationRequestsChain() {
+        String bucket = PropertiesHolder.appBucket;
+        String appPath = PropertiesHolder.appName;
+
+        return exec(Requests.mcpToolsList(bucket, appPath))
+                .exec(Requests.getApplication(bucket, appPath))
+                .exec(Requests.getApplicationTypeSchemas())
+                .exec(Requests.getApplicationTypeSchema(PropertiesHolder.applicationSchemaId))
+                .exec(Requests.updateApplicationMcp(bucket, appPath))
+                .exec(Requests.getApplicationMetadata(bucket, appPath));
+    }
+
+    public static ScenarioBuilder aiDialApplicationRequestsScenario() {
+        return scenario("Admin Application requests")
+                .exec(aiDialApplicationRequestsChain());
+    }
+
+    public static ChainBuilder toolsetRequestsChain() {
+        String bucket = PropertiesHolder.toolsetBucket;
+        String toolsetName = PropertiesHolder.toolsetName;
+        String name = PropertiesHolder.toolsetPath;
+
+        return exec(Requests.getBucket())
+                .exec(Requests.updateToolset(bucket, toolsetName, name))
+                .exec(Requests.toolsetMcpToolsList(bucket, toolsetName))
+                .exec(Requests.getToolset(bucket, toolsetName))
+                .exec(Requests.getToolsetTools(bucket, toolsetName))
+                .exec(Requests.getToolsetAllowedTools(bucket, toolsetName))
+                .exec(Requests.getToolsetMetadata(bucket, toolsetName))
+                .exec(Requests.deleteToolset(bucket, toolsetName));
+    }
+
+    public static ScenarioBuilder toolsetRequestsScenario() {
+        return scenario("Toolset requests")
+                .exec(toolsetRequestsChain());
+    }
+
+    public static ChainBuilder promptRequestsChain() {
+        String bucket = PropertiesHolder.promptBucket;
+        String promptName = PropertiesHolder.promptName;
+        String displayName = PropertiesHolder.promptDisplayName;
+
+        return exec(Requests.updatePrompt(bucket, promptName, displayName))
+                .exec(Requests.getPrompt(bucket, promptName))
+                .exec(Requests.getPromptMetadata(bucket, promptName))
+                .exec(Requests.deletePrompt(bucket, promptName));
+    }
+
+    public static ScenarioBuilder promptRequestsScenario() {
+        return scenario("Prompt requests")
+                .exec(promptRequestsChain());
+    }
+
+    public static ChainBuilder fileRequestsChain() {
+        String bucket = PropertiesHolder.fileBucket;
+        String fileName = PropertiesHolder.fileName;
+        String sourceUrl = "files/" + bucket + "/" + fileName;
+
+        return exec(Requests.getFile(bucket, fileName))
+                .exec(Requests.getFileMetadata(bucket, fileName))
+                .exec(Requests.copyResource(sourceUrl, "files/" + bucket + "/sun2.jpg"))
+                .exec(Requests.moveResource(sourceUrl, "files/" + bucket + "/new/" + fileName))
+                .exec(Requests.deleteFile(bucket, fileName));
+    }
+
+    public static ScenarioBuilder fileRequestsScenario() {
+        return scenario("File requests")
+                .exec(fileRequestsChain());
+    }
+
     public static ChainBuilder aiDialAdminAuth0UIAuthChain() {
         return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
                 .exec(Auth0AuthenticationUIRequests.navigateToSignIn())

@@ -10,7 +10,7 @@ import base64
 import json
 
 # --- MCP image / deployment payloads --------------------------------------- #
-DEFAULT_MCP_DOCKER_IMAGE = "d0nets/simple-mcp:0.0.4"
+DEFAULT_MCP_DOCKER_IMAGE = "mcp/everything:latest"
 ALLOWED_DOMAINS = [
     "toolbox-data.anchore.io",
     "production.cloudfront.docker.com",
