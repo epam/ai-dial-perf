@@ -24,6 +24,22 @@ public class ScenarioRegistry {
         "aiDialAdminAuth0CreateModel", new ScenarioConfig(
             () -> Scenarios.aiDialAdminAuth0CreateModelScenario(modelSyncAttempts, modelSyncPauseDuration),
             aiAdminBaseUrl
+        ),
+        "aiDialAdminRequests", new ScenarioConfig(
+            Scenarios::aiDialApplicationRequestsScenario,
+            dialCoreBaseUrl
+        ),
+        "toolsetRequests", new ScenarioConfig(
+            Scenarios::toolsetRequestsScenario,
+            dialCoreBaseUrl
+        ),
+        "promptRequests", new ScenarioConfig(
+            Scenarios::promptRequestsScenario,
+            dialCoreBaseUrl
+        ),
+        "fileRequests", new ScenarioConfig(
+            Scenarios::fileRequestsScenario,
+            dialCoreBaseUrl
         )
     );
 

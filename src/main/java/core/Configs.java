@@ -18,6 +18,12 @@ public class Configs {
         "Content-Type", "application/json"
     );
 
+    public static final Map<String, String> DIAL_CORE_API_HEADERS = Map.of(
+        "Api-Key", PropertiesHolder.dialCoreApiKey,
+        "Content-Type", "application/json",
+        "Accept", "application/json"
+    );
+
     public static final Map<String, String> AAD_BROWSER_HEADERS = Map.of(
         "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language", "en-US,en;q=0.9",

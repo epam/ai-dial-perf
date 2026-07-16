@@ -17,13 +17,27 @@ import static io.gatling.javaapi.http.HttpDsl.*;
 
 public class Requests {
 
+    /**
+     * JSON-RPC "tools/list" request body, shared by the application and toolset MCP endpoints.
+     */
+    private static final String TOOLS_LIST_PAYLOAD = """
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/list",
+              "params": {"cursor": "optional-cursor-value"}
+            }""";
+
     public static HttpRequestActionBuilder createModelAPI(String modelName) {
-        String payload = "{\"name\":\"" + modelName + "\"," +
-        "\"description\":\"\"," +
-        "\"endpoint\":\"" + PropertiesHolder.modelEndpoint + "\"," +
-        "\"displayVersion\":\"\"," +
-        "\"displayName\":\"" + modelName + "\"," +
-        "\"type\":\"chat\"}";
+        String payload = """
+                {
+                  "name": "%s",
+                  "description": "",
+                  "endpoint": "%s",
+                  "displayVersion": "",
+                  "displayName": "%s",
+                  "type": "chat"
+                }""".formatted(modelName, PropertiesHolder.modelEndpoint, modelName);
 
         return http("Create Model API")
                 .post("/api/v1/models")
@@ -49,6 +63,221 @@ public class Requests {
                 .headers(Configs.DIAL_ADMIN_API_HEADERS)
                 .check(bodyString().saveAs("syncModelStateAPIResponseBody"))
                 .check(jsonPath("$.status").saveAs("syncModelStatus"));
+    }
+
+    /*
+    ***************************************************************
+    * Application requests
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder mcpToolsList(String bucket, String appPath) {
+        return http("MCP tools/list")
+                .post("/v1/deployments/applications/" + bucket + "/" + appPath + "/mcp")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(TOOLS_LIST_PAYLOAD));
+    }
+
+    public static HttpRequestActionBuilder getApplication(String bucket, String appPath) {
+        return http("Get Application")
+                .get("/v1/applications/" + bucket + "/" + appPath)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getApplicationTypeSchemas() {
+        return http("Get Application Type Schemas")
+                .get("/v1/application_type_schemas/schemas")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getApplicationTypeSchema(String schemaId) {
+        return http("Get Application Type Schema")
+                .get("/v1/application_type_schemas/schema")
+                .queryParam("id", schemaId)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder updateApplicationMcp(String bucket, String appPath) {
+        return http("Update Application (MCP)")
+                .put("/v1/applications/" + bucket + "/" + appPath + "/mcp")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(""));
+    }
+
+    public static HttpRequestActionBuilder getApplicationMetadata(String bucket, String appPath) {
+        return http("Get Application Metadata")
+                .get("/v1/metadata/applications/" + bucket + "/" + appPath)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
+    * Toolset requests
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder getBucket() {
+        return http("Get Bucket")
+                .get("/v1/bucket")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetName, String name) {
+        String payload = """
+                {
+                  "path": "%s/%s",
+                  "version": "1.0.0",
+                  "folderId": "%s/",
+                  "updatedAt": 1783512703271,
+                  "author": "dial_admin@gke.test.epam-rail.com",
+                  "name": "%s",
+                  "endpoint": "%s",
+                  "displayName": "%s",
+                  "displayVersion": "1.0.0",
+                  "description": "",
+                  "descriptionKeywords": [],
+                  "maxRetryAttempts": 1,
+                  "createdAt": 1783430411237,
+                  "transport": "http",
+                  "allowedTools": [],
+                  "authSettings": {"authenticationType": "none", "globalAuthStatus": "signed_out", "userLevelAuthStatus": "signed_out"},
+                  "forwardPerRequestKey": false,
+                  "forwardAuthToken": false
+                }""".formatted(bucket, toolsetName, bucket, name, PropertiesHolder.toolsetEndpoint, name);
+
+        return http("Update Toolset")
+                .put("/v1/toolsets/" + bucket + "/" + name)
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder toolsetMcpToolsList(String bucket, String toolsetName) {
+        return http("Toolset MCP tools/list")
+                .post("/v1/toolset/toolsets/" + bucket + "/" + toolsetName + "/mcp")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(TOOLS_LIST_PAYLOAD));
+    }
+
+    public static HttpRequestActionBuilder getToolset(String bucket, String toolsetName) {
+        return http("Get Toolset")
+                .get("/v1/toolsets/" + bucket + "/" + toolsetName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getToolsetTools(String bucket, String toolsetName) {
+        return http("Get Toolset Tools")
+                .get("/v1/toolset/toolsets/" + bucket + "/" + toolsetName + "/tools")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getToolsetAllowedTools(String bucket, String toolsetName) {
+        return http("Get Toolset Allowed Tools")
+                .get("/v1/toolset/toolsets/" + bucket + "/" + toolsetName + "/allowed-tools")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getToolsetMetadata(String bucket, String toolsetName) {
+        return http("Get Toolset Metadata")
+                .get("/v1/metadata/toolsets/" + bucket + "/" + toolsetName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder deleteToolset(String bucket, String toolsetName) {
+        return http("Delete Toolset")
+                .delete("/v1/toolsets/" + bucket + "/" + toolsetName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
+    * Prompt requests
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder updatePrompt(String bucket, String promptName, String displayName) {
+        String payload = """
+                {
+                  "id": "prompts/%s/%s",
+                  "name": "%s",
+                  "description": "XC3Dabf",
+                  "content": "biYcV5p",
+                  "folderId": "prompts/%s"
+                }""".formatted(bucket, promptName, displayName, bucket);
+
+        return http("Update Prompt")
+                .put("/v1/prompts/" + bucket + "/" + promptName)
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder getPrompt(String bucket, String promptName) {
+        return http("Get Prompt")
+                .get("/v1/prompts/" + bucket + "/" + promptName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getPromptMetadata(String bucket, String promptName) {
+        return http("Get Prompt Metadata")
+                .get("/v1/metadata/prompts/" + bucket + "/" + promptName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder deletePrompt(String bucket, String promptName) {
+        return http("Delete Prompt")
+                .delete("/v1/prompts/" + bucket + "/" + promptName)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
+    * Files requests
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder getFile(String bucket, String filePath) {
+        return http("Get File")
+                .get("/v1/files/" + bucket + "/" + filePath)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder getFileMetadata(String bucket, String filePath) {
+        return http("Get File Metadata")
+                .get("/v1/metadata/files/" + bucket + "/" + filePath)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder copyResource(String sourceUrl, String destinationUrl) {
+        String payload = """
+                {
+                  "sourceUrl": "%s",
+                  "destinationUrl": "%s",
+                  "overwrite": true
+                }""".formatted(sourceUrl, destinationUrl);
+
+        return http("Copy Resource")
+                .post("/v1/ops/resource/copy")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder moveResource(String sourceUrl, String destinationUrl) {
+        String payload = """
+                {
+                  "sourceUrl": "%s",
+                  "destinationUrl": "%s",
+                  "overwrite": true
+                }""".formatted(sourceUrl, destinationUrl);
+
+        return http("Move Resource")
+                .post("/v1/ops/resource/move")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder deleteFile(String bucket, String filePath) {
+        return http("Delete File")
+                .delete("/v1/files/" + bucket + "/" + filePath)
+                .headers(Configs.DIAL_CORE_API_HEADERS);
     }
 
     /*
