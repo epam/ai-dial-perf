@@ -1,8 +1,11 @@
 package builders;
 
+import core.Configs;
 import core.PropertiesHolder;
 import io.gatling.javaapi.core.ChainBuilder;
 import io.gatling.javaapi.core.ScenarioBuilder;
+
+import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,6 +151,98 @@ public class Scenarios {
     public static ScenarioBuilder fileRequestsScenario() {
         return scenario("File requests")
                 .exec(fileRequestsChain());
+    }
+
+    public static ChainBuilder deploymentListingChain() {
+        return exec(Requests.listDeployments())
+                .exec(Requests.listOpenAiDeployments())
+                .exec(Requests.getOpenAiDeployment())
+                .exec(Requests.listOpenAiModels())
+                .exec(Requests.getOpenAiModel())
+                .exec(Requests.listOpenAiApplications())
+                .exec(Requests.getOpenAiApplication())
+                .exec(Requests.listOpenAiToolsets())
+                .exec(Requests.getOpenAiToolset());
+    }
+
+    public static ScenarioBuilder deploymentListingScenario() {
+        return scenario("Deployment listing")
+                .exec(deploymentListingChain());
+    }
+
+    public static ChainBuilder sharingRequestsChain() {
+        return exec(Requests.getBucket(Configs.DIAL_CORE_API_HEADERS, "ownerBucket"))
+                .exec(session -> {
+                    long ts = System.currentTimeMillis();
+                    int rnd = ThreadLocalRandom.current().nextInt(1_000_000);
+                    String base = "perf-share-" + ts + "-" + rnd;
+                    String bucket = session.getString("ownerBucket");
+                    return session
+                            .set("shareResA", base + "-a")
+                            .set("shareResB", base + "-b")
+                            .set("shareUrlA", "prompts/" + bucket + "/" + base + "-a")
+                            .set("shareUrlB", "prompts/" + bucket + "/" + base + "-b");
+                })
+                // owner (Api-Key #1) creates two private prompt resources to share
+                .exec(Requests.createSharePrompt(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{shareResA}"))
+                .exec(Requests.createSharePrompt(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{shareResB}"))
+                // create an invitation link for resource A
+                .exec(Requests.shareResource("Share - Create Invitation (A)", Configs.DIAL_CORE_API_HEADERS,
+                        "#{shareUrlA}", "READ", "invitationLink"))
+                // owner-side invitation views
+                .exec(Requests.getInvitations(Configs.DIAL_CORE_API_HEADERS))
+                .exec(Requests.getInvitation(Configs.DIAL_CORE_API_HEADERS, "#{invitationLink}"))
+                // owner lists resources shared by them
+                .exec(Requests.getSharedResources("Share - List (shared by me)", Configs.DIAL_CORE_API_HEADERS,
+                        "\"PROMPT\"", "others"))
+                // receiver (Api-Key #2) accepts the invitation and lists resources shared with them
+                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
+                        exec(Requests.acceptInvitation(Configs.DIAL_CORE_API_HEADERS_2, "#{invitationLink}"))
+                        .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
+                                "\"PROMPT\"", "me"))
+                )
+                // copy the access of resource A onto resource B
+                .exec(Requests.copySharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}", "#{shareUrlB}"))
+                // receiver discards resource B shared with them
+                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
+                        exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
+                )
+                // owner revokes all shared access to resource A
+                .exec(Requests.revokeSharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}"))
+                // create a throwaway invitation on resource B, then delete it (covers deleteInvitation)
+                .exec(Requests.shareResource("Share - Create Invitation (B)", Configs.DIAL_CORE_API_HEADERS,
+                        "#{shareUrlB}", "READ", "invitationLinkB"))
+                .exec(Requests.deleteInvitation(Configs.DIAL_CORE_API_HEADERS, "#{invitationLinkB}"))
+                // cleanup created prompt resources
+                .exec(Requests.deletePrompt("#{ownerBucket}", "#{shareResA}"))
+                .exec(Requests.deletePrompt("#{ownerBucket}", "#{shareResB}"));
+    }
+
+    public static ScenarioBuilder sharingRequestsScenario() {
+        return scenario("Sharing requests")
+                .exec(sharingRequestsChain());
+    }
+
+    /**
+     * Covers the per-request-permissions endpoints. NOTE: these operations are only
+     * permitted with a per-request API key issued by DIAL Core to a deployment; a plain
+     * Api-Key returns 403. Configure {@code dialCoreApiKey}/{@code shareReceiverDeployment}
+     * accordingly (e.g. run behind a deployment) for a green result.
+     */
+    public static ChainBuilder perRequestPermissionsChain() {
+        return exec(Requests.getBucket(Configs.DIAL_CORE_API_HEADERS, "ownerBucket"))
+                .exec(session -> session.set("prpUrl",
+                        "prompts/" + session.getString("ownerBucket") + "/perf-prp-" + System.currentTimeMillis()))
+                .exec(Requests.grantPerRequestPermissions(Configs.DIAL_CORE_API_HEADERS,
+                        "#{prpUrl}", "READ", PropertiesHolder.shareReceiverDeployment))
+                .exec(Requests.getPerRequestPermissions(Configs.DIAL_CORE_API_HEADERS, "me"))
+                .exec(Requests.revokePerRequestPermissions(Configs.DIAL_CORE_API_HEADERS,
+                        "#{prpUrl}", "READ", PropertiesHolder.shareReceiverDeployment));
+    }
+
+    public static ScenarioBuilder perRequestPermissionsScenario() {
+        return scenario("Per-request permissions")
+                .exec(perRequestPermissionsChain());
     }
 
     public static ChainBuilder aiDialAdminAuth0UIAuthChain() {

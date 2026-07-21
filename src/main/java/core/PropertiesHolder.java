@@ -29,6 +29,10 @@ public class PropertiesHolder {
     // DIAL Core admin (Api-Key authenticated) endpoints
     public static final String dialCoreBaseUrl = System.getProperty("dialCoreBaseUrl") != null ? System.getProperty("dialCoreBaseUrl") : "";
     public static final String dialCoreApiKey = System.getProperty("dialCoreApiKey") != null ? System.getProperty("dialCoreApiKey") : "";
+    // Second identity (invitation receiver) for the Sharing workflow scenario.
+    public static final String dialCoreApiKey2 = System.getProperty("dialCoreApiKey2") != null ? System.getProperty("dialCoreApiKey2") : "";
+    // Receiving deployment id for the per-request-permissions scenario.
+    public static final String shareReceiverDeployment = System.getProperty("shareReceiverDeployment") != null ? System.getProperty("shareReceiverDeployment") : "";
     public static final String appBucket = System.getProperty("appBucket") != null ? System.getProperty("appBucket") : "";
     public static final String appName = System.getProperty("appName") != null ? System.getProperty("appName") : "";
     public static final String applicationSchemaId = System.getProperty("applicationSchemaId") != null ? System.getProperty("applicationSchemaId") : "";
