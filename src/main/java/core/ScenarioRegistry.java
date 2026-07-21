@@ -40,6 +40,18 @@ public class ScenarioRegistry {
         "fileRequests", new ScenarioConfig(
             Scenarios::fileRequestsScenario,
             dialCoreBaseUrl
+        ),
+        "deploymentListing", new ScenarioConfig(
+            Scenarios::deploymentListingScenario,
+            dialCoreBaseUrl
+        ),
+        "sharingRequests", new ScenarioConfig(
+            Scenarios::sharingRequestsScenario,
+            dialCoreBaseUrl
+        ),
+        "perRequestPermissions", new ScenarioConfig(
+            Scenarios::perRequestPermissionsScenario,
+            dialCoreBaseUrl
         )
     );
 

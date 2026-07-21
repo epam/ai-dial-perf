@@ -7,6 +7,16 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 | Scenario | Description |
 |---|---|
 | `aiDialAdminCreateModelAPI` | Azure AD authentication + Create Model via API + Sync model state polling |
+| `sharingRequests` | Full DIAL Core **Sharing** API workflow: create/list/copy/revoke shared resources, invitation list/get/accept/delete, and (with a second Api-Key) receiver accept/discard |
+| `perRequestPermissions` | DIAL Core per-request-permissions grant/list/revoke (requires a per-request API key — a plain Api-Key returns 403) |
+
+### Sharing scenario configuration
+
+The `sharingRequests` scenario needs a DIAL Core Api-Key for the resource owner
+(`dialCoreApiKey`). Provide `dialCoreApiKey2` (a second identity) to also exercise
+the receiver-side accept/discard steps; leaving it empty runs the owner-only subset.
+The `perRequestPermissions` scenario additionally uses `shareReceiverDeployment`
+(the receiving deployment id).
 
 ## Prerequisites
 

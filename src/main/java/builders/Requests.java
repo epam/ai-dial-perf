@@ -10,6 +10,7 @@ import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import static io.gatling.javaapi.core.CoreDsl.*;
@@ -278,6 +279,257 @@ public class Requests {
         return http("Delete File")
                 .delete("/v1/files/" + bucket + "/" + filePath)
                 .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
+    * Deployment listing requests (DIAL Core, Api-Key authenticated)
+    * Ported from the "Deployment Listing" Postman collection.
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder listDeployments() {
+        return http("List Deployments")
+                .get("/v1/deployments")
+                .queryParam("interface_type", "all")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder listOpenAiDeployments() {
+        return http("List OpenAI Deployments")
+                .get("/openai/deployments")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.data[*].id").findRandom().saveAs("randomDeploymentId"));
+    }
+
+    public static HttpRequestActionBuilder getOpenAiDeployment() {
+        return http("Get OpenAI Deployment")
+                .get("/openai/deployments/#{randomDeploymentId}")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder listOpenAiModels() {
+        return http("List OpenAI Models")
+                .get("/openai/models")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.data[*].id").findRandom().saveAs("randomModelId"));
+    }
+
+    public static HttpRequestActionBuilder getOpenAiModel() {
+        return http("Get OpenAI Model")
+                .get("/openai/models/#{randomModelId}")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder listOpenAiApplications() {
+        return http("List OpenAI Applications")
+                .get("/openai/applications")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.data[*].id").findRandom().saveAs("randomApplicationId"));
+    }
+
+    public static HttpRequestActionBuilder getOpenAiApplication() {
+        return http("Get OpenAI Application")
+                .get("/openai/applications/#{randomApplicationId}")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder listOpenAiToolsets() {
+        return http("List OpenAI Toolsets")
+                .get("/openai/toolsets")
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.data[*].id").findRandom().saveAs("randomToolsetId"));
+    }
+
+    public static HttpRequestActionBuilder getOpenAiToolset() {
+        return http("Get OpenAI Toolset")
+                .get("/openai/toolsets/#{randomToolsetId}")
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
+    * Sharing requests (DIAL Core "Sharing" API tag)
+    * The header map is passed in so the same builder serves both the resource
+    * owner (Api-Key #1) and the invitation receiver (Api-Key #2).
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder getBucket(Map<String, String> headers, String saveBucketAs) {
+        return http("Share - Get Bucket")
+                .get("/v1/bucket")
+                .headers(headers)
+                .check(jsonPath("$.bucket").saveAs(saveBucketAs));
+    }
+
+    public static HttpRequestActionBuilder createSharePrompt(Map<String, String> headers, String bucket, String promptName) {
+        String payload = """
+                {
+                  "id": "prompts/%s/%s",
+                  "name": "%s",
+                  "description": "perf share resource",
+                  "content": "perf share content",
+                  "folderId": "prompts/%s"
+                }""".formatted(bucket, promptName, promptName, bucket);
+
+        return http("Share - Create Prompt Resource")
+                .put("/v1/prompts/" + bucket + "/" + promptName)
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder shareResource(String requestName, Map<String, String> headers,
+                                                         String resourceUrl, String permission, String saveInvitationLinkAs) {
+        String payload = """
+                {
+                  "invitationType": "link",
+                  "resources": [
+                    {
+                      "url": "%s",
+                      "permissions": ["%s"]
+                    }
+                  ]
+                }""".formatted(resourceUrl, permission);
+
+        return http(requestName)
+                .post("/v1/ops/resource/share/create")
+                .headers(headers)
+                .body(StringBody(payload))
+                .check(jsonPath("$.invitationLink").saveAs(saveInvitationLinkAs));
+    }
+
+    public static HttpRequestActionBuilder getSharedResources(String requestName, Map<String, String> headers,
+                                                              String resourceTypesJson, String with) {
+        String payload = """
+                {
+                  "resourceTypes": [%s],
+                  "with": "%s"
+                }""".formatted(resourceTypesJson, with);
+
+        return http(requestName)
+                .post("/v1/ops/resource/share/list")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder revokeSharedResources(Map<String, String> headers, String resourceUrl) {
+        String payload = """
+                {
+                  "resources": [
+                    {
+                      "url": "%s"
+                    }
+                  ]
+                }""".formatted(resourceUrl);
+
+        return http("Share - Revoke Access")
+                .post("/v1/ops/resource/share/revoke")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder discardSharedResources(Map<String, String> headers, String resourceUrl) {
+        String payload = """
+                {
+                  "resources": [
+                    {
+                      "url": "%s"
+                    }
+                  ]
+                }""".formatted(resourceUrl);
+
+        return http("Share - Discard Access")
+                .post("/v1/ops/resource/share/discard")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder copySharedResources(Map<String, String> headers, String sourceUrl, String destinationUrl) {
+        String payload = """
+                {
+                  "sourceUrl": "%s",
+                  "destinationUrl": "%s"
+                }""".formatted(sourceUrl, destinationUrl);
+
+        return http("Share - Copy Access")
+                .post("/v1/ops/resource/share/copy")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder getInvitations(Map<String, String> headers) {
+        return http("Share - List Invitations")
+                .get("/v1/invitations")
+                .headers(headers);
+    }
+
+    public static HttpRequestActionBuilder getInvitation(Map<String, String> headers, String invitationLinkEl) {
+        return http("Share - Get Invitation")
+                .get("/" + invitationLinkEl)
+                .headers(headers);
+    }
+
+    public static HttpRequestActionBuilder acceptInvitation(Map<String, String> headers, String invitationLinkEl) {
+        return http("Share - Accept Invitation")
+                .get("/" + invitationLinkEl)
+                .queryParam("accept", "true")
+                .headers(headers);
+    }
+
+    public static HttpRequestActionBuilder deleteInvitation(Map<String, String> headers, String invitationLinkEl) {
+        return http("Share - Delete Invitation")
+                .delete("/" + invitationLinkEl)
+                .headers(headers);
+    }
+
+    public static HttpRequestActionBuilder grantPerRequestPermissions(Map<String, String> headers, String resourceUrl,
+                                                                      String permission, String receiver) {
+        String payload = """
+                {
+                  "resources": [
+                    {
+                      "url": "%s",
+                      "permissions": ["%s"]
+                    }
+                  ],
+                  "receiver": "%s"
+                }""".formatted(resourceUrl, permission, receiver);
+
+        return http("Per-Request Permissions - Grant")
+                .post("/v1/ops/resource/per-request-permissions/grant")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder revokePerRequestPermissions(Map<String, String> headers, String resourceUrl,
+                                                                       String permission, String receiver) {
+        String payload = """
+                {
+                  "resources": [
+                    {
+                      "url": "%s",
+                      "permissions": ["%s"]
+                    }
+                  ],
+                  "receiver": "%s"
+                }""".formatted(resourceUrl, permission, receiver);
+
+        return http("Per-Request Permissions - Revoke")
+                .post("/v1/ops/resource/per-request-permissions/revoke")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder getPerRequestPermissions(Map<String, String> headers, String with) {
+        String payload = """
+                {
+                  "with": "%s"
+                }""".formatted(with);
+
+        return http("Per-Request Permissions - List")
+                .post("/v1/ops/resource/per-request-permissions/list")
+                .headers(headers)
+                .body(StringBody(payload));
     }
 
     /*
