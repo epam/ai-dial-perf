@@ -9,6 +9,8 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 | `aiDialAdminCreateModelAPI` | Azure AD authentication + Create Model via API + Sync model state polling |
 | `sharingRequests` | Full DIAL Core **Sharing** API workflow: create/list/copy/revoke shared resources, invitation list/get/accept/delete, and (with a second Api-Key) receiver accept/discard |
 | `perRequestPermissions` | DIAL Core per-request-permissions grant/list/revoke (requires a per-request API key — a plain Api-Key returns 403) |
+| `publicationRequests` | DIAL Core **Publications** API workflow: rule list, create publish request, list, get, delete |
+| `publicationAdmin` | Admin-only DIAL Core **Publications** endpoints: update/approve/reject (requires an admin-privileged Api-Key — a regular key returns 403) |
 
 ### Sharing scenario configuration
 
