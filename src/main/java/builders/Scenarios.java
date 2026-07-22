@@ -245,6 +245,84 @@ public class Scenarios {
                 .exec(perRequestPermissionsChain());
     }
 
+    public static ChainBuilder publicationRequestsChain() {
+        return exec(Requests.getBucket(Configs.DIAL_CORE_API_HEADERS, "ownerBucket"))
+                .exec(session -> {
+                    long ts = System.currentTimeMillis();
+                    int rnd = ThreadLocalRandom.current().nextInt(1_000_000);
+                    String name = "perf-conv-" + ts + "-" + rnd;
+                    String targetFolder = "perf-" + ts + "-" + rnd;
+                    String bucket = session.getString("ownerBucket");
+                    return session
+                            .set("pubConvFolder", "my/folder")
+                            .set("pubConvName", name)
+                            .set("pubTargetFolder", "public/" + targetFolder + "/")
+                            .set("pubSourceUrl", "conversations/" + bucket + "/my/folder/" + name)
+                            .set("pubTargetUrl", "conversations/public/" + targetFolder + "/" + name);
+                })
+                // create a private conversation to publish
+                .exec(Requests.createConversation(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{pubConvFolder}", "#{pubConvName}"))
+                // inspect the publication rules of a public folder
+                .exec(Requests.getPublicationRules(Configs.DIAL_CORE_API_HEADERS, "public/"))
+                // create a publish request (PENDING) and capture its url
+                .exec(Requests.createPublication("Publication - Create", Configs.DIAL_CORE_API_HEADERS,
+                        "Publication name", "#{pubTargetFolder}", "#{pubSourceUrl}", "#{pubTargetUrl}", "publicationUrl"))
+                // list the user's publication requests and fetch the one just created (owner can read their own)
+                .exec(Requests.getPublications(Configs.DIAL_CORE_API_HEADERS, "publications/#{ownerBucket}/"))
+                .exec(Requests.getPublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrl}"))
+                // delete the PENDING publication request, then clean up the conversation
+                .exec(Requests.deletePublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrl}"))
+                .exec(Requests.deleteConversation(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{pubConvFolder}", "#{pubConvName}"));
+    }
+
+    public static ScenarioBuilder publicationRequestsScenario() {
+        return scenario("Publication requests")
+                .exec(publicationRequestsChain());
+    }
+
+    /**
+     * Covers the admin-only publication endpoints (update/approve/reject). NOTE: these
+     * require an admin-privileged DIAL Core Api-Key; a regular key returns 403. It creates
+     * one publication to update+approve and another to reject, mirroring a real review flow.
+     */
+    public static ChainBuilder publicationAdminChain() {
+        return exec(Requests.getBucket(Configs.DIAL_CORE_API_HEADERS, "ownerBucket"))
+                .exec(session -> {
+                    long ts = System.currentTimeMillis();
+                    int rnd = ThreadLocalRandom.current().nextInt(1_000_000);
+                    String bucket = session.getString("ownerBucket");
+                    String nameA = "perf-conv-a-" + ts + "-" + rnd;
+                    String nameB = "perf-conv-b-" + ts + "-" + rnd;
+                    return session
+                            .set("pubConvFolder", "my/folder")
+                            .set("pubConvNameA", nameA)
+                            .set("pubConvNameB", nameB)
+                            .set("pubTargetFolderA", "public/perf-a-" + ts + "-" + rnd + "/")
+                            .set("pubTargetFolderB", "public/perf-b-" + ts + "-" + rnd + "/")
+                            .set("pubSourceUrlA", "conversations/" + bucket + "/my/folder/" + nameA)
+                            .set("pubSourceUrlB", "conversations/" + bucket + "/my/folder/" + nameB)
+                            .set("pubTargetUrlA", "conversations/public/perf-a-" + ts + "-" + rnd + "/" + nameA)
+                            .set("pubTargetUrlB", "conversations/public/perf-b-" + ts + "-" + rnd + "/" + nameB);
+                })
+                .exec(Requests.createConversation(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{pubConvFolder}", "#{pubConvNameA}"))
+                .exec(Requests.createConversation(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{pubConvFolder}", "#{pubConvNameB}"))
+                // publication A: create -> update -> approve
+                .exec(Requests.createPublication("Publication - Create (A)", Configs.DIAL_CORE_API_HEADERS,
+                        "Publication name", "#{pubTargetFolderA}", "#{pubSourceUrlA}", "#{pubTargetUrlA}", "publicationUrlA"))
+                .exec(Requests.updatePublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrlA}",
+                        "#{pubTargetFolderA}", "#{pubSourceUrlA}", "#{pubTargetUrlA}"))
+                .exec(Requests.approvePublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrlA}"))
+                // publication B: create -> reject
+                .exec(Requests.createPublication("Publication - Create (B)", Configs.DIAL_CORE_API_HEADERS,
+                        "Publication name", "#{pubTargetFolderB}", "#{pubSourceUrlB}", "#{pubTargetUrlB}", "publicationUrlB"))
+                .exec(Requests.rejectPublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrlB}", "perf-test rejection"));
+    }
+
+    public static ScenarioBuilder publicationAdminScenario() {
+        return scenario("Publication admin requests")
+                .exec(publicationAdminChain());
+    }
+
     public static ChainBuilder aiDialAdminAuth0UIAuthChain() {
         return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
                 .exec(Auth0AuthenticationUIRequests.navigateToSignIn())

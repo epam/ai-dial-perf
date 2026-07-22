@@ -534,6 +534,172 @@ public class Requests {
 
     /*
     ***************************************************************
+    * Publication requests (DIAL Core "Publications" API tag)
+    ***************************************************************
+    */
+
+    // Conversation resource used as the publication subject (mirrors PublicationApiTest).
+    public static HttpRequestActionBuilder createConversation(Map<String, String> headers, String bucket, String folder, String name) {
+        String payload = """
+                {
+                  "id": "conversations/%s/%s/%s",
+                  "name": "%s",
+                  "messages": [],
+                  "model": {"id": "gpt-4"},
+                  "prompt": "",
+                  "temperature": 1,
+                  "folderId": "conversations/%s/%s",
+                  "replay": {"isReplay": false, "replayUserMessagesStack": [], "activeReplayIndex": 0},
+                  "selectedAddons": [],
+                  "lastActivityDate": 0
+                }""".formatted(bucket, folder, name, name, bucket, folder);
+
+        return http("Publication - Create Conversation")
+                .put("/v1/conversations/" + bucket + "/" + folder + "/" + name)
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder deleteConversation(Map<String, String> headers, String bucket, String folder, String name) {
+        return http("Publication - Delete Conversation")
+                .delete("/v1/conversations/" + bucket + "/" + folder + "/" + name)
+                .headers(headers);
+    }
+
+    public static HttpRequestActionBuilder getPublications(Map<String, String> headers, String url) {
+        String payload = """
+                {
+                  "url": "%s"
+                }""".formatted(url);
+
+        return http("Publication - List")
+                .post("/v1/ops/publication/list")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder getPublication(Map<String, String> headers, String url) {
+        String payload = """
+                {
+                  "url": "%s"
+                }""".formatted(url);
+
+        return http("Publication - Get")
+                .post("/v1/ops/publication/get")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder createPublication(String requestName, Map<String, String> headers, String name,
+                                                             String targetFolder, String sourceUrl, String targetUrl,
+                                                             String savePublicationUrlAs) {
+        String payload = """
+                {
+                  "name": "%s",
+                  "targetFolder": "%s",
+                  "resources": [
+                    {
+                      "action": "ADD",
+                      "sourceUrl": "%s",
+                      "targetUrl": "%s"
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "source": "roles",
+                      "function": "EQUAL",
+                      "targets": ["user"]
+                    }
+                  ]
+                }""".formatted(name, targetFolder, sourceUrl, targetUrl);
+
+        return http(requestName)
+                .post("/v1/ops/publication/create")
+                .headers(headers)
+                .body(StringBody(payload))
+                .check(jsonPath("$.url").saveAs(savePublicationUrlAs));
+    }
+
+    public static HttpRequestActionBuilder updatePublication(Map<String, String> headers, String url,
+                                                             String targetFolder, String sourceUrl, String targetUrl) {
+        String payload = """
+                {
+                  "url": "%s",
+                  "targetFolder": "%s",
+                  "resources": [
+                    {
+                      "action": "ADD",
+                      "sourceUrl": "%s",
+                      "targetUrl": "%s"
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "source": "roles",
+                      "function": "EQUAL",
+                      "targets": ["user"]
+                    }
+                  ]
+                }""".formatted(url, targetFolder, sourceUrl, targetUrl);
+
+        return http("Publication - Update")
+                .post("/v1/ops/publication/update")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder deletePublication(Map<String, String> headers, String url) {
+        String payload = """
+                {
+                  "url": "%s"
+                }""".formatted(url);
+
+        return http("Publication - Delete")
+                .post("/v1/ops/publication/delete")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder rejectPublication(Map<String, String> headers, String url, String comment) {
+        String payload = """
+                {
+                  "url": "%s",
+                  "comment": "%s"
+                }""".formatted(url, comment);
+
+        return http("Publication - Reject")
+                .post("/v1/ops/publication/reject")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder approvePublication(Map<String, String> headers, String url) {
+        String payload = """
+                {
+                  "url": "%s"
+                }""".formatted(url);
+
+        return http("Publication - Approve")
+                .post("/v1/ops/publication/approve")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    // The rule/list url is a *public folder* path (e.g. "public/" or "public/folder/"), not a publications url.
+    public static HttpRequestActionBuilder getPublicationRules(Map<String, String> headers, String url) {
+        String payload = """
+                {
+                  "url": "%s"
+                }""".formatted(url);
+
+        return http("Publication - List Rules")
+                .post("/v1/ops/publication/rule/list")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    /*
+    ***************************************************************
     * TEMPORARY UNUSED METHODS FOR AI Dial Admin UI model creation
     ***************************************************************
     */
