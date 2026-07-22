@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static core.PropertiesHolder.*;
+import static java.util.Map.entry;
 
 public class ScenarioRegistry {
 
@@ -20,39 +21,47 @@ public class ScenarioRegistry {
         }
     }
 
-    private static final Map<String, ScenarioConfig> REGISTRY = Map.of(
-        "aiDialAdminAuth0CreateModel", new ScenarioConfig(
+    private static final Map<String, ScenarioConfig> REGISTRY = Map.ofEntries(
+        entry("aiDialAdminAuth0CreateModel", new ScenarioConfig(
             () -> Scenarios.aiDialAdminAuth0CreateModelScenario(modelSyncAttempts, modelSyncPauseDuration),
             aiAdminBaseUrl
-        ),
-        "aiDialAdminRequests", new ScenarioConfig(
+        )),
+        entry("aiDialAdminRequests", new ScenarioConfig(
             Scenarios::aiDialApplicationRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "toolsetRequests", new ScenarioConfig(
+        )),
+        entry("toolsetRequests", new ScenarioConfig(
             Scenarios::toolsetRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "promptRequests", new ScenarioConfig(
+        )),
+        entry("promptRequests", new ScenarioConfig(
             Scenarios::promptRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "fileRequests", new ScenarioConfig(
+        )),
+        entry("fileRequests", new ScenarioConfig(
             Scenarios::fileRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "deploymentListing", new ScenarioConfig(
+        )),
+        entry("deploymentListing", new ScenarioConfig(
             Scenarios::deploymentListingScenario,
             dialCoreBaseUrl
-        ),
-        "sharingRequests", new ScenarioConfig(
+        )),
+        entry("sharingRequests", new ScenarioConfig(
             Scenarios::sharingRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "perRequestPermissions", new ScenarioConfig(
+        )),
+        entry("perRequestPermissions", new ScenarioConfig(
             Scenarios::perRequestPermissionsScenario,
             dialCoreBaseUrl
-        )
+        )),
+        entry("publicationRequests", new ScenarioConfig(
+            Scenarios::publicationRequestsScenario,
+            dialCoreBaseUrl
+        )),
+        entry("publicationAdmin", new ScenarioConfig(
+            Scenarios::publicationAdminScenario,
+            dialCoreBaseUrl
+        ))
     );
 
     public static ScenarioConfig get(String name) {
