@@ -534,6 +534,125 @@ public class Requests {
 
     /*
     ***************************************************************
+    * MCP container deployment requests (deployment-manager API)
+    * Ported from scripts/DeployApp/run_mcp_container.py (+ workflow.py / api.py).
+    *
+    * These calls target the deploy-service host (PropertiesHolder.urlDeployService)
+    * via absolute URLs, so they work regardless of the scenario's protocol baseUrl
+    * (which stays on the Admin host for the Auth0 login flow). They save the created
+    * resource ids into the session ("mcpImageId", "mcpDeploymentName") so subsequent
+    * chains / tests can reuse them.
+    ***************************************************************
+    */
+
+    /** Deploy-service base URL (absolute), trailing slash stripped. Empty until configured. */
+    private static final String MCP_DEPLOY_HOST = PropertiesHolder.urlDeployService.replaceAll("/$", "");
+
+    /** allowedDomains from constants.py (ALLOWED_DOMAINS). */
+    private static final String MCP_ALLOWED_DOMAINS_JSON =
+            "[\"toolbox-data.anchore.io\",\"production.cloudfront.docker.com\",\"ghcr.io\","
+            + "\"pkg-containers.githubusercontent.com\",\"*\"]";
+
+    public static HttpRequestActionBuilder createMcpImage(String imageName) {
+        String payload = """
+                {
+                  "name": "%s",
+                  "id": null,
+                  "version": "1.0.0",
+                  "description": "",
+                  "source": {"$type": "docker", "imageUri": "%s"},
+                  "buildStatus": "NOT_BUILT",
+                  "allowedDomains": %s,
+                  "imageBuilder": "BUILDKIT",
+                  "$type": "mcp",
+                  "transportType": "local"
+                }""".formatted(imageName, PropertiesHolder.mcpDockerImage, MCP_ALLOWED_DOMAINS_JSON);
+
+        return http("MCP - Create Image Definition")
+                .post(MCP_DEPLOY_HOST + "/api/v1/images/definitions")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(201))
+                .check(jsonPath("$.id").saveAs("mcpImageId"));
+    }
+
+    public static HttpRequestActionBuilder buildMcpImage() {
+        String payload = """
+                {"imageDefinitionId": "#{mcpImageId}"}""";
+
+        return http("MCP - Build Image")
+                .post(MCP_DEPLOY_HOST + "/api/v1/images/builds")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(201));
+    }
+
+    public static HttpRequestActionBuilder getMcpImageBuildStatus() {
+        return http("MCP - Get Image Build Status")
+                .get(MCP_DEPLOY_HOST + "/api/v1/images/builds/#{mcpImageId}/status")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .check(status().in(200, 202))
+                .check(bodyString().saveAs("mcpBuildStatusBody"));
+    }
+
+    public static HttpRequestActionBuilder createMcpDeployment(String deploymentName) {
+        String payload = """
+                {
+                  "name": "%s",
+                  "displayName": "%s",
+                  "version": "1.0.0",
+                  "description": "",
+                  "$type": "mcp",
+                  "status": "not_deployed",
+                  "source": {"$type": "internal_image", "imageDefinitionId": "#{mcpImageId}"},
+                  "metadata": {"envs": []},
+                  "scaling": {"minReplicas": 0, "maxReplicas": 1, "scaleToZeroDelaySeconds": 300},
+                  "resources": {
+                    "requests": {"cpu": "0.5", "memory": "1073741824"},
+                    "limits": {"cpu": "0.5", "memory": "1073741824"}
+                  },
+                  "containerPort": null,
+                  "transport": "http_streaming"
+                }""".formatted(deploymentName, deploymentName);
+
+        return http("MCP - Create Deployment")
+                .post(MCP_DEPLOY_HOST + "/api/v1/deployments")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(201))
+                .check(jsonPath("$.name").saveAs("mcpDeploymentName"));
+    }
+
+    public static HttpRequestActionBuilder runMcpDeployment() {
+        return http("MCP - Run Deployment")
+                .post(MCP_DEPLOY_HOST + "/api/v1/deployments/#{mcpDeploymentName}/deploy")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .body(StringBody(""))
+                .check(status().is(200));
+    }
+
+    public static HttpRequestActionBuilder getMcpDeploymentStatus() {
+        return http("MCP - Get Deployment Status")
+                .get(MCP_DEPLOY_HOST + "/api/v1/deployments/#{mcpDeploymentName}")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS)
+                .check(status().is(200))
+                .check(jsonPath("$.status").saveAs("mcpDeploymentStatus"));
+    }
+
+    public static HttpRequestActionBuilder deleteMcpDeployment() {
+        return http("MCP - Delete Deployment")
+                .delete(MCP_DEPLOY_HOST + "/api/v1/deployments/#{mcpDeploymentName}")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder deleteMcpImage() {
+        return http("MCP - Delete Image Definition")
+                .delete(MCP_DEPLOY_HOST + "/api/v1/images/definitions/#{mcpImageId}")
+                .headers(Configs.MCP_DEPLOY_API_HEADERS);
+    }
+
+    /*
+    ***************************************************************
     * TEMPORARY UNUSED METHODS FOR AI Dial Admin UI model creation
     ***************************************************************
     */

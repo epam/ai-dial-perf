@@ -54,11 +54,11 @@ public class Auth0AuthenticationUIRequests {
 
     public static HttpRequestActionBuilder usernamePasswordChallenge() {
         return http("Username Password Challenge")
-                .post(AUTH0_HOST + "/usernamepassword/challenge")
+                .post("#{auth0Host}/usernamepassword/challenge")
                 .header("Accept", "*/*")
                 .header("Content-Type", "application/json")
                 .header("auth0-client", DIAL_ADMIN_AUTH0_CLIENT_INFO_CHALLENGE)
-                .header("Origin", AUTH0_HOST)
+                .header("Origin", "#{auth0Host}")
                 .header("Referer", "#{auth0LoginPageUrl}")
                 .body(StringBody(Auth0AuthenticationUIRequests::buildChallengePayload))
                 .asJson()
@@ -67,11 +67,11 @@ public class Auth0AuthenticationUIRequests {
 
     public static HttpRequestActionBuilder usernamePasswordLogin() {
         return http("Username Password Login")
-                .post(AUTH0_HOST + "/usernamepassword/login")
+                .post("#{auth0Host}/usernamepassword/login")
                 .header("Accept", "*/*")
                 .header("Content-Type", "application/json")
                 .header("auth0-client", DIAL_ADMIN_AUTH0_CLIENT_INFO_LOGIN)
-                .header("Origin", AUTH0_HOST)
+                .header("Origin", "#{auth0Host}")
                 .header("Referer", "#{auth0LoginPageUrl}")
                 .body(StringBody(Auth0AuthenticationUIRequests::buildLoginPayload))
                 .asJson()
@@ -82,9 +82,9 @@ public class Auth0AuthenticationUIRequests {
     public static ChainBuilder loginCallback() {
         return exec(
                         http("Auth0 Login Callback")
-                                .post(AUTH0_HOST + "/login/callback")
+                                .post("#{auth0Host}/login/callback")
                                 .headers(Configs.AAD_BROWSER_HEADERS)
-                                .header("Origin", AUTH0_HOST)
+                                .header("Origin", "#{auth0Host}")
                                 .header("Referer", "#{auth0LoginPageUrl}")
                                 .formParam("wa", "#{auth0Wa}")
                                 .formParam("wresult", "#{auth0Wresult}")
@@ -132,6 +132,12 @@ public class Auth0AuthenticationUIRequests {
 
     public static Session extractAuth0LoginParams(Session session) {
         String loginPageUrl = session.getString("auth0LoginPageUrl");
+        String auth0Host = extractOrigin(loginPageUrl);
+        if (auth0Host == null || auth0Host.isBlank()) {
+            auth0Host = AUTH0_HOST;
+            log.warn("Could not derive Auth0 host from '{}'; falling back to configured domain '{}'", loginPageUrl, AUTH0_HOST);
+        }
+        session = session.set("auth0Host", auth0Host);
 
         String state = extractQueryParam(loginPageUrl, "state");
         String redirectUri = extractQueryParam(loginPageUrl, "redirect_uri");
@@ -271,6 +277,21 @@ public class Auth0AuthenticationUIRequests {
 
     private static boolean hasValue(Session session, String key) {
         return getSessionValue(session, key) != null;
+    }
+
+    private static String extractOrigin(String url) {
+        if (url == null || url.isBlank()) return null;
+        try {
+            java.net.URI uri = java.net.URI.create(url.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (scheme == null || host == null) return null;
+            String origin = scheme + "://" + host;
+            if (uri.getPort() != -1) origin += ":" + uri.getPort();
+            return origin;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static String extractQueryParam(String url, String paramName) {

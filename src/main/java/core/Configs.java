@@ -18,6 +18,14 @@ public class Configs {
         "Content-Type", "application/json"
     );
 
+    // Deployment-manager (MCP deploy service) headers. Bearer token is produced by the Auth0
+    // auth chain (session key "dialAdminAccessToken"); mirrors scripts/DeployApp/api.py.
+    public static final Map<String, String> MCP_DEPLOY_API_HEADERS = Map.of(
+        "Authorization", "Bearer #{dialAdminAccessToken}",
+        "If-None-Match", "*",
+        "Content-Type", "application/json"
+    );
+
     public static final Map<String, String> DIAL_CORE_API_HEADERS = Map.of(
         "Api-Key", PropertiesHolder.dialCoreApiKey,
         "Content-Type", "application/json",

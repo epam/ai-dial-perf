@@ -5,6 +5,7 @@ import core.PropertiesHolder;
 import io.gatling.javaapi.core.ChainBuilder;
 import io.gatling.javaapi.core.ScenarioBuilder;
 
+import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -254,5 +255,169 @@ public class Scenarios {
                 .exec(Auth0AuthenticationUIRequests.usernamePasswordChallenge())
                 .exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
                 .exec(Auth0AuthenticationUIRequests.loginCallback());
+    }
+
+    /*
+    ***************************************************************
+    * MCP container deployment (precondition)
+    * Port of scripts/DeployApp/run_mcp_container.py: create + build an MCP image,
+    * then create + run a deployment, polling until the container is "running".
+    *
+    * Designed to be used as a PRECONDITION before other tests: it persists the
+    * created resource ids into the Gatling session so downstream chains in the same
+    * scenario can reuse them:
+    *   #{mcpImageId}         the built image-definition id
+    *   #{mcpDeploymentName}  the running deployment (container) name
+    *   #{mcpContainerRunning} boolean, true once status == "running"
+    *   #{mcpContainerUrl}    public MCP endpoint URL once the container is running
+    ***************************************************************
+    */
+
+    private static final String MCP_BUILD_SUCCESSFUL = "BUILD_SUCCESSFUL";
+    private static final String MCP_BUILD_FAILED = "BUILD_FAILED";
+    private static final String MCP_STATUS_RUNNING = "running";
+
+    /**
+     * Latest Server-Sent-Events {@code data:} value from the build-status stream.
+     * Mirrors {@code workflow._latest_sse_status}: scan lines bottom-up for {@code data:}.
+     */
+    private static String latestSseStatus(String body) {
+        if (body == null) {
+            return null;
+        }
+        String[] lines = body.split("\\R");
+        for (int i = lines.length - 1; i >= 0; i--) {
+            String line = lines[i].trim();
+            if (line.startsWith("data:")) {
+                return line.substring("data:".length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private static String mcpRandomName(String prefix) {
+        return prefix + ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
+    }
+
+    private static String mcpContainerUrl(String deploymentName) {
+        URI adminUri = URI.create(PropertiesHolder.aiAdminBaseUrl);
+        String host = adminUri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("aiAdminBaseUrl must include a host");
+        }
+
+        String mcpHost = host.replaceFirst("^admin-", "").replaceFirst("\\.gke\\.", ".knative.gke.");
+        return "%s://dm-%s.%s/mcp".formatted(adminUri.getScheme(), deploymentName, mcpHost);
+    }
+
+    /** MCP container precondition using the configured PropertiesHolder defaults. */
+    public static ChainBuilder runMcpContainerChain() {
+        return runMcpContainerChain(
+                PropertiesHolder.mcpBuildMaxAttempts, PropertiesHolder.mcpBuildPollDuration,
+                PropertiesHolder.mcpStatusMaxAttempts, PropertiesHolder.mcpStatusPollDuration,
+                PropertiesHolder.mcpCleanup);
+    }
+
+    public static ChainBuilder runMcpContainerChain(int buildMaxAttempts, int buildPollDuration,
+                                                    int statusMaxAttempts, int statusPollDuration,
+                                                    boolean cleanup) {
+        return exec(session -> session
+                        .set("mcpImageNameReq", mcpRandomName("TestImage"))
+                        .set("mcpDeploymentNameReq", mcpRandomName("testcontainername"))
+                        // Initialize outcome flags so downstream guards / logging never hit a missing key
+                        // when the precondition short-circuits (e.g. the deploy host is unreachable).
+                        .set("mcpBuildDone", false)
+                        .set("mcpContainerRunning", false))
+                // 1) create the image definition + trigger a build, then poll until BUILD_SUCCESSFUL
+                .exec(Requests.createMcpImage("#{mcpImageNameReq}"))
+                // Only proceed to build/deploy if the image was actually created (short-circuit on failure).
+                .doIf(session -> session.contains("mcpImageId")).then(
+                        exec(Requests.buildMcpImage())
+                        .group("MCP Image Build Total").on(
+                        exec(session -> session
+                                .set("mcpBuildAttempts", 0)
+                                .set("mcpBuildDone", false)
+                                .set("mcpBuildFailed", false))
+                        .asLongAs(session -> session.getInt("mcpBuildAttempts") < buildMaxAttempts
+                                && !session.getBoolean("mcpBuildDone")
+                                && !session.getBoolean("mcpBuildFailed"))
+                        .on(
+                                exec(Requests.getMcpImageBuildStatus())
+                                .exec(session -> {
+                                    String status = latestSseStatus(session.getString("mcpBuildStatusBody"));
+                                    int attempts = session.getInt("mcpBuildAttempts") + 1;
+                                    logger.info("[MCP Image Build - attempt {}] status: {}", attempts, status);
+                                    return session
+                                            .set("mcpBuildDone", MCP_BUILD_SUCCESSFUL.equals(status))
+                                            .set("mcpBuildFailed", MCP_BUILD_FAILED.equals(status))
+                                            .set("mcpBuildAttempts", attempts);
+                                })
+                                .doIf(session -> !session.getBoolean("mcpBuildDone")
+                                        && !session.getBoolean("mcpBuildFailed")
+                                        && session.getInt("mcpBuildAttempts") < buildMaxAttempts)
+                                .then(pause(buildPollDuration)))
+                        .doIf(session -> !session.getBoolean("mcpBuildDone"))
+                        .then(exec(session -> {
+                            logger.warn("[MCP Image Build] image did not reach BUILD_SUCCESSFUL after {} attempts (failed={})",
+                                    session.getInt("mcpBuildAttempts"), session.getBoolean("mcpBuildFailed"));
+                            return session.markAsFailed();
+                        })))
+                // 2) create + run the deployment, poll until status == "running" (only if the build succeeded)
+                .doIf(session -> session.getBoolean("mcpBuildDone")).then(
+                        exec(Requests.createMcpDeployment("#{mcpDeploymentNameReq}"))
+                        .exec(Requests.runMcpDeployment())
+                        .group("MCP Deployment Run Total").on(
+                                exec(session -> session
+                                        .set("mcpStatusAttempts", 0)
+                                        .set("mcpContainerRunning", false))
+                                .asLongAs(session -> session.getInt("mcpStatusAttempts") < statusMaxAttempts
+                                        && !session.getBoolean("mcpContainerRunning"))
+                                .on(
+                                        exec(Requests.getMcpDeploymentStatus())
+                                        .exec(session -> {
+                                            String status = session.getString("mcpDeploymentStatus");
+                                            int attempts = session.getInt("mcpStatusAttempts") + 1;
+                                            logger.info("[MCP Deployment Run - attempt {}] status: {}", attempts, status);
+                                            return session
+                                                    .set("mcpContainerRunning", MCP_STATUS_RUNNING.equalsIgnoreCase(status))
+                                                    .set("mcpStatusAttempts", attempts);
+                                        })
+                                        .doIf(session -> !session.getBoolean("mcpContainerRunning")
+                                                && session.getInt("mcpStatusAttempts") < statusMaxAttempts)
+                                        .then(pause(statusPollDuration)))
+                                .doIf(session -> !session.getBoolean("mcpContainerRunning"))
+                                .then(exec(session -> {
+                                    logger.warn("[MCP Deployment Run] container did not reach 'running' after {} attempts (last status: {})",
+                                            session.getInt("mcpStatusAttempts"), session.getString("mcpDeploymentStatus"));
+                                    return session.markAsFailed();
+                                })))))
+                .exec(session -> {
+                    if (session.getBoolean("mcpContainerRunning")) {
+                        String mcpUrl = mcpContainerUrl(session.getString("mcpDeploymentName"));
+                        logger.info("PASSED: MCP container is running. Reusable session data -> mcpImageId='{}', mcpDeploymentName='{}', mcpContainerUrl='{}'",
+                                session.getString("mcpImageId"), session.getString("mcpDeploymentName"), mcpUrl);
+                        return session.set("mcpContainerUrl", mcpUrl);
+                    }
+                    return session;
+                })
+                // 3) optional best-effort cleanup (Python CLEANUP / --cleanup); off by default so the
+                //    container stays up for the following tests to reuse.
+                .doIf(session -> cleanup).then(
+                        doIf(session -> session.contains("mcpDeploymentName"))
+                                .then(exec(Requests.deleteMcpDeployment()))
+                        .doIf(session -> session.contains("mcpImageId"))
+                                .then(exec(Requests.deleteMcpImage())));
+    }
+
+    /**
+     * Scenario that authenticates via Auth0 and then runs the MCP container precondition.
+     * Compose additional chains after {@code runMcpContainerChain()} to reuse the running
+     * container (via {@code #{mcpDeploymentName}}, {@code #{mcpImageId}}, and
+     * {@code #{mcpContainerUrl}}) in later tests.
+     */
+    public static ScenarioBuilder runMcpContainerScenario() {
+        return scenario("Run MCP Container (precondition)")
+                .exec(aiDialAdminAuth0UIAuthChain())
+                .exec(runMcpContainerChain());
     }
 }

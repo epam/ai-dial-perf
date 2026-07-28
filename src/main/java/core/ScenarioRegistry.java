@@ -52,6 +52,10 @@ public class ScenarioRegistry {
         "perRequestPermissions", new ScenarioConfig(
             Scenarios::perRequestPermissionsScenario,
             dialCoreBaseUrl
+        ),
+        "runMcpContainer", new ScenarioConfig(
+            Scenarios::runMcpContainerScenario,
+            aiAdminBaseUrl
         )
     );
 

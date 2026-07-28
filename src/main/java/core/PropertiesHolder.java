@@ -46,6 +46,16 @@ public class PropertiesHolder {
     public static final String fileBucket = System.getProperty("fileBucket") != null ? System.getProperty("fileBucket") : "";
     public static final String fileName = System.getProperty("fileName") != null ? System.getProperty("fileName") : "";
 
+    // MCP deployment-manager (deploy service) workflow — mirrors scripts/DeployApp/run_mcp_container.py.
+    // Base URL of the deployment-manager API (Python: URL_DEPLOY_SERVICE / url_depl).
+    public static final String urlDeployService = firstNonBlankProp("", "urlDeployService", "url_depl", "URL_DEPLOY_SERVICE");
+    public static final String mcpDockerImage = System.getProperty("mcpDockerImage") != null ? System.getProperty("mcpDockerImage") : "mcp/everything:latest";
+    public static final int mcpBuildMaxAttempts = System.getProperty("mcpBuildMaxAttempts") != null ? Integer.parseInt(System.getProperty("mcpBuildMaxAttempts")) : 18;
+    public static final int mcpBuildPollDuration = System.getProperty("mcpBuildPollDuration") != null ? Integer.parseInt(System.getProperty("mcpBuildPollDuration")) : 10;
+    public static final int mcpStatusMaxAttempts = System.getProperty("mcpStatusMaxAttempts") != null ? Integer.parseInt(System.getProperty("mcpStatusMaxAttempts")) : 28;
+    public static final int mcpStatusPollDuration = System.getProperty("mcpStatusPollDuration") != null ? Integer.parseInt(System.getProperty("mcpStatusPollDuration")) : 10;
+    public static final boolean mcpCleanup = Boolean.parseBoolean(System.getProperty("mcpCleanup", "false"));
+
     public static final String DIAL_ADMIN_SCOPE;
     public static final String DIAL_ADMIN_AUTH0_DOMAIN;
     public static final String DIAL_ADMIN_CLIENT_ID;
@@ -85,6 +95,18 @@ public class PropertiesHolder {
             value = trimToEmpty(System.getenv(envVar));
         }
         return value;
+    }
+
+    /**
+     * Returns the first non-blank {@code System.getProperty} value among {@code keys}, else {@code defaultValue}.
+     * Mirrors the alias-resolution used by scripts/DeployApp/config.py (e.g. urlDeployService / url_depl).
+     */
+    private static String firstNonBlankProp(String defaultValue, String... keys) {
+        for (String key : keys) {
+            String value = trimToEmpty(System.getProperty(key));
+            if (!value.isEmpty()) return value;
+        }
+        return defaultValue;
     }
 
     private static String trimToEmpty(String s) {
