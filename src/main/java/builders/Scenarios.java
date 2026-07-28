@@ -104,21 +104,29 @@ public class Scenarios {
     public static ChainBuilder toolsetRequestsChain() {
         String bucket = PropertiesHolder.toolsetBucket;
         String toolsetName = PropertiesHolder.toolsetName;
-        String name = PropertiesHolder.toolsetPath;
+        String toolsetPath = PropertiesHolder.toolsetPath;
 
         return exec(Requests.getBucket())
-                .exec(Requests.updateToolset(bucket, toolsetName, name))
-                .exec(Requests.toolsetMcpToolsList(bucket, toolsetName))
-                .exec(Requests.getToolset(bucket, toolsetName))
-                .exec(Requests.getToolsetTools(bucket, toolsetName))
-                .exec(Requests.getToolsetAllowedTools(bucket, toolsetName))
-                .exec(Requests.getToolsetMetadata(bucket, toolsetName))
-                .exec(Requests.deleteToolset(bucket, toolsetName));
+                .exec(Requests.updateToolset(bucket, toolsetPath, toolsetName))
+                .exec(Requests.toolsetMcpToolsList(bucket, toolsetPath))
+                .exec(Requests.getToolset(bucket, toolsetPath))
+                .exec(Requests.getToolsetTools(bucket, toolsetPath))
+                .exec(Requests.getToolsetAllowedTools(bucket, toolsetPath))
+                .exec(Requests.getToolsetMetadata(bucket, toolsetPath))
+                .exec(Requests.deleteToolset(bucket, toolsetPath));
     }
 
     public static ScenarioBuilder toolsetRequestsScenario() {
         return scenario("Toolset requests")
                 .exec(toolsetRequestsChain());
+    }
+    
+    public static ScenarioBuilder toolsetUpdateOnlyScenario() {
+        return scenario("Toolset update only")
+                .exec(Requests.updateToolset(
+                        PropertiesHolder.toolsetBucket,
+                        PropertiesHolder.toolsetPath,
+                        PropertiesHolder.toolsetName));
     }
 
     public static ChainBuilder promptRequestsChain() {

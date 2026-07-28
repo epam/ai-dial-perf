@@ -33,6 +33,10 @@ public class ScenarioRegistry {
             Scenarios::toolsetRequestsScenario,
             dialCoreBaseUrl
         ),
+        "toolsetUpdateOnly", new ScenarioConfig(
+            Scenarios::toolsetUpdateOnlyScenario,
+            dialCoreBaseUrl
+        ),
         "promptRequests", new ScenarioConfig(
             Scenarios::promptRequestsScenario,
             dialCoreBaseUrl

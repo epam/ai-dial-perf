@@ -32,6 +32,13 @@ public class Configs {
         "Accept", "application/json"
     );
 
+    public static final Map<String, String> DIAL_CORE_API_IF_MATCH_ANY_HEADERS = Map.of(
+        "Api-Key", PropertiesHolder.dialCoreApiKey,
+        "Content-Type", "application/json",
+        "Accept", "application/json",
+        "If-Match", "*"
+    );
+
     // Second DIAL Core identity, used as the invitation receiver in the Sharing workflow.
     public static final Map<String, String> DIAL_CORE_API_HEADERS_2 = Map.of(
         "Api-Key", PropertiesHolder.dialCoreApiKey2,

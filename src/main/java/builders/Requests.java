@@ -123,33 +123,28 @@ public class Requests {
                 .headers(Configs.DIAL_CORE_API_HEADERS);
     }
 
-    public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetName, String name) {
+    public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetPath, String toolsetName) {
         String payload = """
                 {
-                  "path": "%s/%s",
-                  "version": "1.0.0",
-                  "folderId": "%s/",
-                  "updatedAt": 1783512703271,
-                  "author": "dial_admin@gke.test.epam-rail.com",
-                  "name": "%s",
                   "endpoint": "%s",
-                  "displayName": "%s",
-                  "displayVersion": "1.0.0",
-                  "description": "",
-                  "descriptionKeywords": [],
-                  "maxRetryAttempts": 1,
-                  "createdAt": 1783430411237,
-                  "transport": "http",
+                  "display_name": "%s",
+                  "display_version": "%s",
+                  "transport": "HTTP",
                   "allowedTools": [],
-                  "authSettings": {"authenticationType": "none", "globalAuthStatus": "signed_out", "userLevelAuthStatus": "signed_out"},
-                  "forwardPerRequestKey": false,
-                  "forwardAuthToken": false
-                }""".formatted(bucket, toolsetName, bucket, name, PropertiesHolder.toolsetEndpoint, name);
+                  "authSettings": {"authenticationType": "NONE"}
+                }""".formatted(PropertiesHolder.toolsetEndpoint, toolsetName, toolsetVersion(toolsetPath));
 
         return http("Update Toolset")
-                .put("/v1/toolsets/" + bucket + "/" + name)
+                .put("/v1/toolsets/" + bucket + "/" + toolsetPath)
                 .headers(Configs.DIAL_CORE_API_HEADERS)
                 .body(StringBody(payload));
+    }
+
+    private static String toolsetVersion(String toolsetPath) {
+        int separator = toolsetPath.lastIndexOf("__");
+        return separator >= 0 && separator + 2 < toolsetPath.length()
+                ? toolsetPath.substring(separator + 2)
+                : "0.0.1";
     }
 
     public static HttpRequestActionBuilder toolsetMcpToolsList(String bucket, String toolsetName) {
@@ -186,7 +181,8 @@ public class Requests {
     public static HttpRequestActionBuilder deleteToolset(String bucket, String toolsetName) {
         return http("Delete Toolset")
                 .delete("/v1/toolsets/" + bucket + "/" + toolsetName)
-                .headers(Configs.DIAL_CORE_API_HEADERS);
+                .headers(Configs.DIAL_CORE_API_IF_MATCH_ANY_HEADERS)
+                .check(status().saveAs("toolsetDeleteStatus"));
     }
 
     /*
