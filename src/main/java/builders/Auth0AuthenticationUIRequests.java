@@ -33,7 +33,7 @@ public class Auth0AuthenticationUIRequests {
 
     public static HttpRequestActionBuilder navigateToSignIn() {
         return http("Navigate to Application")
-                .get("/")
+                .get(DIAL_ADMIN_HOST + "/")
                 .headers(Configs.AAD_BROWSER_HEADERS)
                 .check(status().is(200))
                 .check(regex("name=\"csrfToken\"[^>]*value=\"([^\"]+)\"").saveAs("csrfToken"));
@@ -41,7 +41,7 @@ public class Auth0AuthenticationUIRequests {
 
     public static HttpRequestActionBuilder initiateAuth0SignIn() {
         return http("Initiate Auth0 Sign In")
-                .post("/api/auth/signin/auth0")
+                .post(DIAL_ADMIN_HOST + "/api/auth/signin/auth0")
                 .headers(Configs.AAD_BROWSER_HEADERS)
                 .header("Origin", DIAL_ADMIN_HOST)
                 .header("Referer", DIAL_ADMIN_HOST + "/api/auth/signin?callbackUrl=%2F")

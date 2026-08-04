@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.gatling.javaapi.core.CoreDsl.*;
+import static io.gatling.javaapi.http.HttpDsl.status;
 
 public class Scenarios {
 
@@ -79,6 +80,30 @@ public class Scenarios {
                 .exec(aiDialAdminCreateModelAPIChain(maxAttempts, pauseDuration));
     }
 
+    /**
+     * Creates a unique role, assigns it to a new key, and verifies that assignment.
+     * The role/key payloads intentionally match the original API test template.
+     */
+    public static ChainBuilder aiDialAdminCreateKeyWithRoleChain() {
+        return exec(session -> session
+                .set("roleName", "default")
+                .set("keyName", "Key-" + java.util.UUID.randomUUID())
+                .set("keyValue", java.util.UUID.randomUUID().toString())
+                .set("project", "Project-" + java.util.UUID.randomUUID())
+                .set("displayName", "DisplayName-" + java.util.UUID.randomUUID()))
+                .exec(Requests.createKeyWithRoleAPI()
+                        .check(status().in(200, 201, 204)))
+                .exec(Requests.getKeyAPI("#{keyName}")
+                        .check(status().is(200))
+                        .check(jsonPath("$.roles[0]").isEL("#{roleName}")));
+    }
+
+    public static ScenarioBuilder createKeyWithRoleScenario() {
+        return scenario("Create Key With Role")
+                .exec(aiDialAdminAuth0UIAuthChain())
+                .exec(aiDialAdminCreateKeyWithRoleChain());
+    }
+
     public static ScenarioBuilder aiDialAdminAuth0UIAuthScenario() {
         return scenario("AI Dial Admin - Auth0 UI Auth")
                 .exec(aiDialAdminAuth0UIAuthChain());
@@ -88,8 +113,8 @@ public class Scenarios {
         String bucket = PropertiesHolder.appBucket;
         String appPath = PropertiesHolder.appName;
 
-        return exec(Requests.mcpToolsList(bucket, appPath))
-                .exec(Requests.getApplication(bucket, appPath))
+        return exec(Requests.getApplication(bucket, appPath))
+                .exec(Requests.mcpToolsList(bucket, appPath))
                 .exec(Requests.getApplicationTypeSchemas())
                 .exec(Requests.getApplicationTypeSchema(PropertiesHolder.applicationSchemaId))
                 .exec(Requests.updateApplicationMcp(bucket, appPath))
@@ -106,7 +131,10 @@ public class Scenarios {
         String toolsetName = PropertiesHolder.toolsetName;
         String toolsetPath = PropertiesHolder.toolsetPath;
 
-        return exec(Requests.getBucket())
+        return exec(session -> session.contains("toolsetEndpoint")
+                        ? session
+                        : session.set("toolsetEndpoint", PropertiesHolder.toolsetEndpoint))
+                .exec(Requests.getBucket())
                 .exec(Requests.updateToolset(bucket, toolsetPath, toolsetName))
                 .exec(Requests.toolsetMcpToolsList(bucket, toolsetPath))
                 .exec(Requests.getToolset(bucket, toolsetPath))
@@ -150,11 +178,13 @@ public class Scenarios {
         String fileName = PropertiesHolder.fileName;
         String sourceUrl = "files/" + bucket + "/" + fileName;
 
-        return exec(Requests.getFile(bucket, fileName))
+        return exec(session -> session.set("fileWorkName", "perf-" + java.util.UUID.randomUUID() + ".jpg"))
+                .exec(Requests.getFile(bucket, fileName))
                 .exec(Requests.getFileMetadata(bucket, fileName))
-                .exec(Requests.copyResource(sourceUrl, "files/" + bucket + "/sun2.jpg"))
-                .exec(Requests.moveResource(sourceUrl, "files/" + bucket + "/new/" + fileName))
-                .exec(Requests.deleteFile(bucket, fileName));
+                .exec(Requests.copyResource(sourceUrl, "files/" + bucket + "/#{fileWorkName}"))
+                .exec(Requests.moveResource("files/" + bucket + "/#{fileWorkName}",
+                        "files/" + bucket + "/new/#{fileWorkName}"))
+                .exec(Requests.deleteFile(bucket, "new/#{fileWorkName}"));
     }
 
     public static ScenarioBuilder fileRequestsScenario() {
@@ -195,9 +225,9 @@ public class Scenarios {
                 // owner (Api-Key #1) creates two private prompt resources to share
                 .exec(Requests.createSharePrompt(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{shareResA}"))
                 .exec(Requests.createSharePrompt(Configs.DIAL_CORE_API_HEADERS, "#{ownerBucket}", "#{shareResB}"))
-                // create an invitation link for resource A
+                // Cover all prompt permissions and the invitation acceptance limit.
                 .exec(Requests.shareResource("Share - Create Invitation (A)", Configs.DIAL_CORE_API_HEADERS,
-                        "#{shareUrlA}", "READ", "invitationLink"))
+                        "#{shareUrlA}", "\"READ\", \"WRITE\", \"SHARE\"", 1, "invitationLink"))
                 // owner-side invitation views
                 .exec(Requests.getInvitations(Configs.DIAL_CORE_API_HEADERS))
                 .exec(Requests.getInvitation(Configs.DIAL_CORE_API_HEADERS, "#{invitationLink}"))
@@ -209,15 +239,23 @@ public class Scenarios {
                         exec(Requests.acceptInvitation(Configs.DIAL_CORE_API_HEADERS_2, "#{invitationLink}"))
                         .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
                                 "\"PROMPT\"", "me"))
+                        .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
+                                "\"PROMPT\"", "others"))
                 )
                 // copy the access of resource A onto resource B
                 .exec(Requests.copySharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}", "#{shareUrlB}"))
                 // receiver discards resource B shared with them
                 .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
+                        exec(Requests.getSharedResources("Share - List (after copy)", Configs.DIAL_CORE_API_HEADERS_2,
+                                "\"PROMPT\"", "me"))
+                        .exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
+                        .exec(Requests.getSharedResources("Share - List (after discard)", Configs.DIAL_CORE_API_HEADERS_2,
+                                "\"PROMPT\"", "me"))
                 )
                 // owner revokes all shared access to resource A
                 .exec(Requests.revokeSharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}"))
+                .exec(Requests.getSharedResources("Share - List (after revoke)", Configs.DIAL_CORE_API_HEADERS,
+                        "\"PROMPT\"", "others"))
                 // create a throwaway invitation on resource B, then delete it (covers deleteInvitation)
                 .exec(Requests.shareResource("Share - Create Invitation (B)", Configs.DIAL_CORE_API_HEADERS,
                         "#{shareUrlB}", "READ", "invitationLinkB"))
@@ -235,23 +273,107 @@ public class Scenarios {
     /**
      * Covers the per-request-permissions endpoints. NOTE: these operations are only
      * permitted with a per-request API key issued by DIAL Core to a deployment; a plain
-     * Api-Key returns 403. Configure {@code dialCoreApiKey}/{@code shareReceiverDeployment}
-     * accordingly (e.g. run behind a deployment) for a green result.
+     * Api-Key returns 403. Configure {@code dialCorePerRequestApiKey} and
+     * {@code shareReceiverDeployment} accordingly for a green result.
      */
     public static ChainBuilder perRequestPermissionsChain() {
-        return exec(Requests.getBucket(Configs.DIAL_CORE_API_HEADERS, "ownerBucket"))
-                .exec(session -> session.set("prpUrl",
-                        "prompts/" + session.getString("ownerBucket") + "/perf-prp-" + System.currentTimeMillis()))
-                .exec(Requests.grantPerRequestPermissions(Configs.DIAL_CORE_API_HEADERS,
-                        "#{prpUrl}", "READ", PropertiesHolder.shareReceiverDeployment))
-                .exec(Requests.getPerRequestPermissions(Configs.DIAL_CORE_API_HEADERS, "me"))
-                .exec(Requests.revokePerRequestPermissions(Configs.DIAL_CORE_API_HEADERS,
-                        "#{prpUrl}", "READ", PropertiesHolder.shareReceiverDeployment));
+        return exec(Requests.getBucket(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS, "ownerBucket"))
+                .exec(session -> {
+                    String name = "perf-prp-" + System.currentTimeMillis() + "-"
+                            + ThreadLocalRandom.current().nextInt(1_000_000);
+                    return session
+                            .set("prpResourceName", name)
+                            .set("prpUrl", "prompts/" + session.getString("ownerBucket") + "/" + name);
+                })
+                // Grant permissions only for an existing resource, as in the Core API tests.
+                .exec(Requests.createSharePrompt(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS,
+                        "#{ownerBucket}", "#{prpResourceName}"))
+                .exec(Requests.grantPerRequestPermissions(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS,
+                        "#{prpUrl}", "\"READ\", \"WRITE\"", PropertiesHolder.shareReceiverDeployment))
+                // The API has different response schemas for permissions granted by and to this deployment.
+                .exec(Requests.getPerRequestPermissions(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS, "others"))
+                .exec(Requests.getPerRequestPermissions(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS, "me"))
+                .exec(Requests.revokePerRequestPermissions(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS,
+                        "#{prpUrl}", "\"READ\", \"WRITE\"", PropertiesHolder.shareReceiverDeployment))
+                .exec(Requests.getPerRequestPermissions(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS, "others"))
+                .exec(Requests.deletePrompt(Configs.DIAL_CORE_PER_REQUEST_API_HEADERS,
+                        "#{ownerBucket}", "#{prpResourceName}"));
     }
 
     public static ScenarioBuilder perRequestPermissionsScenario() {
         return scenario("Per-request permissions")
                 .exec(perRequestPermissionsChain());
+    }
+
+    public static ChainBuilder publicationRequestsChain() {
+        return exec(session -> PropertiesHolder.publicationAdminBearerToken.isEmpty()
+                        ? session
+                        : session.set("dialAdminAccessToken", PropertiesHolder.publicationAdminBearerToken))
+                .doIf(session -> PropertiesHolder.publicationAdminBearerToken.isEmpty()
+                        && (!session.contains("dialAdminAccessToken")
+                        || session.getString("dialAdminAccessToken").isBlank())).then(
+                        exec(aiDialAdminAuth0UIAuthChain())
+                )
+                .exitHereIfFailed()
+                .exec(Requests.getPublicationBucket("publicationOwnerBucket"))
+                .exitHereIfFailed()
+                .exec(session -> {
+                    String base = "perf-publication-" + System.currentTimeMillis() + "-"
+                            + ThreadLocalRandom.current().nextInt(1_000_000);
+                    String bucket = session.getString("publicationOwnerBucket");
+                    String targetFolderName = base + "-public";
+                    String promptName = base + "-prompt";
+                    return session
+                            .set("publicationName", base)
+                            .set("publicationPromptName", promptName)
+                            .set("publicationSourceUrl", "prompts/" + bucket + "/" + promptName)
+                            .set("publicationTargetFolder", "public/" + targetFolderName + "/")
+                            .set("publicationTargetPath", targetFolderName + "/" + promptName)
+                            .set("publicationTargetUrl", "prompts/public/" + targetFolderName + "/" + promptName)
+                            .set("publicationOwnerFolder", "publications/" + bucket + "/")
+                            .set("publicationRejectFolder", "public/" + base + "-reject/")
+                            .set("publicationDeleteFolder", "public/" + base + "-delete/");
+                })
+                // Publish workflow: create -> get/list -> admin update/approve -> inspect.
+                .exec(Requests.createPublicationPrompt("#{publicationOwnerBucket}", "#{publicationPromptName}"))
+                .exitHereIfFailed()
+                .exec(Requests.createPublication("Publication - Create Publish Request",
+                        "#{publicationName}", "#{publicationTargetFolder}", "#{publicationSourceUrl}",
+                        "#{publicationTargetUrl}", "publicationUrl"))
+                .exitHereIfFailed()
+                .exec(Requests.getPublication(Configs.DIAL_CORE_API_HEADERS, "#{publicationUrl}"))
+                .exec(Requests.listPublications("Publication - List (owner)", Configs.DIAL_CORE_API_HEADERS,
+                        "#{publicationOwnerFolder}"))
+                .exec(Requests.listPublications("Publication - List (admin pending)",
+                        Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS, "publications/public/"))
+                .exec(Requests.updatePublication("#{publicationUrl}", "#{publicationName}-updated",
+                        "#{publicationTargetFolder}", "#{publicationSourceUrl}", "#{publicationTargetUrl}"))
+                .exec(Requests.approvePublication("Publication - Approve Publish Request", "#{publicationUrl}"))
+                .exec(Requests.getPublicationRules(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS,
+                        "#{publicationTargetFolder}"))
+                .exec(Requests.listPublishedResources())
+                .exec(Requests.getPublishedPrompt("#{publicationTargetPath}"))
+                // Clean up the public copy through the documented unpublish workflow.
+                .exec(Requests.createUnpublishPublication("#{publicationTargetFolder}",
+                        "#{publicationTargetUrl}", "unpublishPublicationUrl"))
+                .exitHereIfFailed()
+                .exec(Requests.approvePublication("Publication - Approve Unpublish Request",
+                        "#{unpublishPublicationUrl}"))
+                .exec(Requests.deletePublicationPrompt("#{publicationOwnerBucket}", "#{publicationPromptName}"))
+                // Separate terminal workflows cover reject and owner deletion of pending requests.
+                .exec(Requests.createRulesOnlyPublication("Publication - Create Reject Request",
+                        "#{publicationName}-reject", "#{publicationRejectFolder}", "rejectPublicationUrl"))
+                .exitHereIfFailed()
+                .exec(Requests.rejectPublication("#{rejectPublicationUrl}"))
+                .exec(Requests.createRulesOnlyPublication("Publication - Create Delete Request",
+                        "#{publicationName}-delete", "#{publicationDeleteFolder}", "deletePublicationUrl"))
+                .exitHereIfFailed()
+                .exec(Requests.deletePublication("#{deletePublicationUrl}"));
+    }
+
+    public static ScenarioBuilder publicationRequestsScenario() {
+        return scenario("Publication requests")
+                .exec(publicationRequestsChain());
     }
 
     public static ChainBuilder aiDialAdminAuth0UIAuthChain() {
@@ -404,7 +526,10 @@ public class Scenarios {
                         String mcpUrl = mcpContainerUrl(session.getString("mcpDeploymentName"));
                         logger.info("PASSED: MCP container is running. Reusable session data -> mcpImageId='{}', mcpDeploymentName='{}', mcpContainerUrl='{}'",
                                 session.getString("mcpImageId"), session.getString("mcpDeploymentName"), mcpUrl);
-                        return session.set("mcpContainerUrl", mcpUrl);
+                        // Polling can encounter transient transport failures before a later
+                        // request confirms the deployment is running. Recover the session so
+                        // the successful precondition can release downstream workflows.
+                        return session.markAsSucceeded().set("mcpContainerUrl", mcpUrl);
                     }
                     return session;
                 })
@@ -427,5 +552,48 @@ public class Scenarios {
         return scenario("Run MCP Container (precondition)")
                 .exec(aiDialAdminAuth0UIAuthChain())
                 .exec(runMcpContainerChain());
+    }
+
+    private static ChainBuilder requestChainWithProbability(String groupName, ChainBuilder requestChain) {
+        double probability = PropertiesHolder.mixedRequestProbability;
+        return group(groupName).on(
+                doIf(session -> probability == 100.0
+                        || ThreadLocalRandom.current().nextDouble(100.0) < probability)
+                        // A failure in one independent workflow must not make a later
+                        // selected workflow exit early through exitHereIfFailed.
+                        .then(exec(session -> session.markAsSucceeded()).exec(requestChain)));
+    }
+
+    /**
+     * Creates one MCP container as a precondition, exposes its URL as
+     * {@code toolsetEndpoint}, then independently executes each request workflow
+     * in the mixed-scenario scope with the same configured probability. A
+     * probability of 100 runs all six workflows.
+     */
+    public static ScenarioBuilder mcpContainerMixedRequestsScenario() {
+        return scenario("MCP container + mixed requests")
+                .exec(aiDialAdminAuth0UIAuthChain())
+                // Cleanup must stay disabled here because the following toolset workflow uses the container.
+                .exec(runMcpContainerChain(
+                        PropertiesHolder.mcpBuildMaxAttempts, PropertiesHolder.mcpBuildPollDuration,
+                        PropertiesHolder.mcpStatusMaxAttempts, PropertiesHolder.mcpStatusPollDuration,
+                        false))
+                .exitHereIfFailed()
+                .exec(session -> {
+                    if (!session.getBoolean("mcpContainerRunning") || !session.contains("mcpContainerUrl")) {
+                        logger.error("MCP precondition failed: no running container endpoint is available");
+                        return session.markAsFailed();
+                    }
+                    String endpoint = session.getString("mcpContainerUrl");
+                    logger.info("Saved MCP endpoint as toolsetEndpoint='{}'", endpoint);
+                    return session.set("toolsetEndpoint", endpoint);
+                })
+                .exitHereIfFailed()
+                .exec(requestChainWithProbability("Mixed - Toolset requests", toolsetRequestsChain()))
+                .exec(requestChainWithProbability("Mixed - Prompt requests", promptRequestsChain()))
+                .exec(requestChainWithProbability("Mixed - File requests", fileRequestsChain()))
+                .exec(requestChainWithProbability("Mixed - Deployment listing", deploymentListingChain()))
+                .exec(requestChainWithProbability("Mixed - Sharing requests", sharingRequestsChain()))
+                .exec(requestChainWithProbability("Mixed - Publication requests", publicationRequestsChain()));
     }
 }

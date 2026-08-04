@@ -68,6 +68,36 @@ public class Requests {
 
     /*
     ***************************************************************
+    * AI DIAL Admin roles and keys
+    ***************************************************************
+    */
+
+    public static HttpRequestActionBuilder createRoleAPI() {
+        return http("Create Role")
+                .post("/api/v1/roles")
+                .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
+                .body(StringBody("""
+                        {"name":"#{roleName}","displayName":"#{roleName}","description":""}
+                        """));
+    }
+
+    public static HttpRequestActionBuilder createKeyWithRoleAPI() {
+        return http("Create Key With Role")
+                .post("/api/v1/keys")
+                .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
+                .body(StringBody("""
+                        {"name":"#{keyName}","key":"#{keyValue}","displayName":"#{displayName}","project":"#{project}","secured":true,"roles":["#{roleName}"],"description":"string","projectContactPoint":"string","expiresAt":null,"validityState":{"message":"string","valid":true},"topics":["string"],"allowedIpAddressRanges":null}
+                        """));
+    }
+
+    public static HttpRequestActionBuilder getKeyAPI(String keyName) {
+        return http("Get Key And Verify Assigned Role")
+                .get("/api/v1/keys/" + keyName)
+                .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS);
+    }
+
+    /*
+    ***************************************************************
     * Application requests
     ***************************************************************
     */
@@ -82,7 +112,11 @@ public class Requests {
     public static HttpRequestActionBuilder getApplication(String bucket, String appPath) {
         return http("Get Application")
                 .get("/v1/applications/" + bucket + "/" + appPath)
-                .headers(Configs.DIAL_CORE_API_HEADERS);
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.endpoint").saveAs("applicationEndpoint"))
+                .check(jsonPath("$.display_name").saveAs("applicationDisplayName"))
+                .check(jsonPath("$.display_version").saveAs("applicationDisplayVersion"))
+                .check(jsonPath("$.mcp").saveAs("applicationMcpConfig"));
     }
 
     public static HttpRequestActionBuilder getApplicationTypeSchemas() {
@@ -100,9 +134,15 @@ public class Requests {
 
     public static HttpRequestActionBuilder updateApplicationMcp(String bucket, String appPath) {
         return http("Update Application (MCP)")
-                .put("/v1/applications/" + bucket + "/" + appPath + "/mcp")
+                .put("/v1/applications/" + bucket + "/" + appPath)
                 .headers(Configs.DIAL_CORE_API_HEADERS)
-                .body(StringBody(""));
+                .body(StringBody("""
+                        {
+                          "endpoint": "#{applicationEndpoint}",
+                          "display_name": "#{applicationDisplayName}",
+                          "display_version": "#{applicationDisplayVersion}",
+                          "mcp": #{applicationMcpConfig}
+                        }"""));
     }
 
     public static HttpRequestActionBuilder getApplicationMetadata(String bucket, String appPath) {
@@ -126,13 +166,13 @@ public class Requests {
     public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetPath, String toolsetName) {
         String payload = """
                 {
-                  "endpoint": "%s",
+                  "endpoint": "#{toolsetEndpoint}",
                   "display_name": "%s",
                   "display_version": "%s",
                   "transport": "HTTP",
                   "allowedTools": [],
                   "authSettings": {"authenticationType": "NONE"}
-                }""".formatted(PropertiesHolder.toolsetEndpoint, toolsetName, toolsetVersion(toolsetPath));
+                }""".formatted(toolsetName, toolsetVersion(toolsetPath));
 
         return http("Update Toolset")
                 .put("/v1/toolsets/" + bucket + "/" + toolsetPath)
@@ -220,9 +260,14 @@ public class Requests {
     }
 
     public static HttpRequestActionBuilder deletePrompt(String bucket, String promptName) {
+        return deletePrompt(Configs.DIAL_CORE_API_HEADERS, bucket, promptName);
+    }
+
+    public static HttpRequestActionBuilder deletePrompt(Map<String, String> headers, String bucket, String promptName) {
         return http("Delete Prompt")
                 .delete("/v1/prompts/" + bucket + "/" + promptName)
-                .headers(Configs.DIAL_CORE_API_HEADERS);
+                .headers(headers)
+                .check(status().is(200));
     }
 
     /*
@@ -355,6 +400,7 @@ public class Requests {
         return http("Share - Get Bucket")
                 .get("/v1/bucket")
                 .headers(headers)
+                .check(status().is(200))
                 .check(jsonPath("$.bucket").saveAs(saveBucketAs));
     }
 
@@ -371,26 +417,38 @@ public class Requests {
         return http("Share - Create Prompt Resource")
                 .put("/v1/prompts/" + bucket + "/" + promptName)
                 .headers(headers)
-                .body(StringBody(payload));
+                .body(StringBody(payload))
+                .check(status().is(200));
     }
 
     public static HttpRequestActionBuilder shareResource(String requestName, Map<String, String> headers,
                                                          String resourceUrl, String permission, String saveInvitationLinkAs) {
+        return shareResource(requestName, headers, resourceUrl, "\"" + permission + "\"", null,
+                saveInvitationLinkAs);
+    }
+
+    public static HttpRequestActionBuilder shareResource(String requestName, Map<String, String> headers,
+                                                         String resourceUrl, String permissionsJson,
+                                                         Integer maxAcceptedUsers, String saveInvitationLinkAs) {
+        String maxAcceptedUsersJson = maxAcceptedUsers == null
+                ? ""
+                : ",\n  \"maxAcceptedUsers\": " + maxAcceptedUsers;
         String payload = """
                 {
                   "invitationType": "link",
                   "resources": [
                     {
                       "url": "%s",
-                      "permissions": ["%s"]
+                      "permissions": [%s]
                     }
-                  ]
-                }""".formatted(resourceUrl, permission);
+                  ]%s
+                }""".formatted(resourceUrl, permissionsJson, maxAcceptedUsersJson);
 
         return http(requestName)
                 .post("/v1/ops/resource/share/create")
                 .headers(headers)
                 .body(StringBody(payload))
+                .check(status().is(200))
                 .check(jsonPath("$.invitationLink").saveAs(saveInvitationLinkAs));
     }
 
@@ -399,13 +457,15 @@ public class Requests {
         String payload = """
                 {
                   "resourceTypes": [%s],
-                  "with": "%s"
+                  "with": "%s",
+                  "includeUserInfo": true
                 }""".formatted(resourceTypesJson, with);
 
         return http(requestName)
                 .post("/v1/ops/resource/share/list")
                 .headers(headers)
-                .body(StringBody(payload));
+                .body(StringBody(payload))
+                .check(status().is(200));
     }
 
     public static HttpRequestActionBuilder revokeSharedResources(Map<String, String> headers, String resourceUrl) {
@@ -421,7 +481,8 @@ public class Requests {
         return http("Share - Revoke Access")
                 .post("/v1/ops/resource/share/revoke")
                 .headers(headers)
-                .body(StringBody(payload));
+                .body(StringBody(payload))
+                .check(status().is(200));
     }
 
     public static HttpRequestActionBuilder discardSharedResources(Map<String, String> headers, String resourceUrl) {
@@ -461,35 +522,35 @@ public class Requests {
 
     public static HttpRequestActionBuilder getInvitation(Map<String, String> headers, String invitationLinkEl) {
         return http("Share - Get Invitation")
-                .get("/" + invitationLinkEl)
+                .get(invitationLinkEl)
                 .headers(headers);
     }
 
     public static HttpRequestActionBuilder acceptInvitation(Map<String, String> headers, String invitationLinkEl) {
         return http("Share - Accept Invitation")
-                .get("/" + invitationLinkEl)
+                .get(invitationLinkEl)
                 .queryParam("accept", "true")
                 .headers(headers);
     }
 
     public static HttpRequestActionBuilder deleteInvitation(Map<String, String> headers, String invitationLinkEl) {
         return http("Share - Delete Invitation")
-                .delete("/" + invitationLinkEl)
+                .delete(invitationLinkEl)
                 .headers(headers);
-    }
+            }
 
     public static HttpRequestActionBuilder grantPerRequestPermissions(Map<String, String> headers, String resourceUrl,
-                                                                      String permission, String receiver) {
+                                                                      String permissionsJson, String receiver) {
         String payload = """
                 {
                   "resources": [
                     {
                       "url": "%s",
-                      "permissions": ["%s"]
+                      "permissions": [%s]
                     }
                   ],
                   "receiver": "%s"
-                }""".formatted(resourceUrl, permission, receiver);
+                }""".formatted(resourceUrl, permissionsJson, receiver);
 
         return http("Per-Request Permissions - Grant")
                 .post("/v1/ops/resource/per-request-permissions/grant")
@@ -498,17 +559,17 @@ public class Requests {
     }
 
     public static HttpRequestActionBuilder revokePerRequestPermissions(Map<String, String> headers, String resourceUrl,
-                                                                       String permission, String receiver) {
+                                                                       String permissionsJson, String receiver) {
         String payload = """
                 {
                   "resources": [
                     {
                       "url": "%s",
-                      "permissions": ["%s"]
+                      "permissions": [%s]
                     }
                   ],
                   "receiver": "%s"
-                }""".formatted(resourceUrl, permission, receiver);
+                }""".formatted(resourceUrl, permissionsJson, receiver);
 
         return http("Per-Request Permissions - Revoke")
                 .post("/v1/ops/resource/per-request-permissions/revoke")
@@ -522,8 +583,236 @@ public class Requests {
                   "with": "%s"
                 }""".formatted(with);
 
-        return http("Per-Request Permissions - List")
+        return http("Per-Request Permissions - List (" + with + ")")
                 .post("/v1/ops/resource/per-request-permissions/list")
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    /*
+    ***************************************************************
+    * Publication requests (DIAL Core "Publications" API tag)
+    *
+    * These use absolute Core URLs because the scenario first authenticates against
+    * the Admin UI host to obtain an administrator bearer token.
+    ***************************************************************
+    */
+
+    private static String dialCoreUrl(String path) {
+        String baseUrl = PropertiesHolder.dialCoreBaseUrl.replaceAll("/+$", "");
+        return baseUrl + (path.startsWith("/") ? path : "/" + path);
+    }
+
+    public static HttpRequestActionBuilder getPublicationBucket(String saveBucketAs) {
+        return http("Publication - Get Owner Bucket")
+                .get(dialCoreUrl("/v1/bucket"))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$.bucket").saveAs(saveBucketAs));
+    }
+
+    public static HttpRequestActionBuilder createPublicationPrompt(String bucket, String promptName) {
+        String payload = """
+                {
+                  "id": "prompts/%s/%s",
+                  "name": "%s",
+                  "description": "publication performance resource",
+                  "content": "publication performance content",
+                  "folderId": "prompts/%s"
+                }""".formatted(bucket, promptName, promptName, bucket);
+
+        return http("Publication - Create Source Prompt")
+                .put(dialCoreUrl("/v1/prompts/" + bucket + "/" + promptName))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder deletePublicationPrompt(String bucket, String promptName) {
+        return http("Publication - Delete Source Prompt")
+                .delete(dialCoreUrl("/v1/prompts/" + bucket + "/" + promptName))
+                .headers(Configs.DIAL_CORE_API_HEADERS);
+    }
+
+    public static HttpRequestActionBuilder createPublication(String requestName, String name,
+                                                              String targetFolder, String sourceUrl,
+                                                              String targetUrl, String savePublicationUrlAs) {
+        String payload = """
+                {
+                  "name": "%s",
+                  "targetFolder": "%s",
+                  "resources": [
+                    {
+                      "action": "ADD",
+                      "sourceUrl": "%s",
+                      "targetUrl": "%s"
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "source": "roles",
+                      "function": "EQUAL",
+                      "targets": ["default"]
+                    }
+                  ]
+                }""".formatted(name, targetFolder, sourceUrl, targetUrl);
+
+        return http(requestName)
+                .post(dialCoreUrl("/v1/ops/publication/create"))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(200))
+                .check(jsonPath("$.url").saveAs(savePublicationUrlAs));
+    }
+
+    public static HttpRequestActionBuilder createRulesOnlyPublication(String requestName, String name,
+                                                                       String targetFolder,
+                                                                       String savePublicationUrlAs) {
+        String payload = """
+                {
+                  "name": "%s",
+                  "targetFolder": "%s",
+                  "rules": [
+                    {
+                      "source": "roles",
+                      "function": "EQUAL",
+                      "targets": ["default"]
+                    }
+                  ]
+                }""".formatted(name, targetFolder);
+
+        return http(requestName)
+                .post(dialCoreUrl("/v1/ops/publication/create"))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(200))
+                .check(jsonPath("$.url").saveAs(savePublicationUrlAs));
+    }
+
+    public static HttpRequestActionBuilder createUnpublishPublication(String targetFolder, String targetUrl,
+                                                                       String savePublicationUrlAs) {
+        String payload = """
+                {
+                  "name": "Unpublish performance resource",
+                  "targetFolder": "%s",
+                  "resources": [
+                    {
+                      "action": "DELETE",
+                      "targetUrl": "%s"
+                    }
+                  ]
+                }""".formatted(targetFolder, targetUrl);
+
+        return http("Publication - Create Unpublish Request")
+                .post(dialCoreUrl("/v1/ops/publication/create"))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody(payload))
+                .check(status().is(200))
+                .check(jsonPath("$.url").saveAs(savePublicationUrlAs));
+    }
+
+    public static HttpRequestActionBuilder getPublication(Map<String, String> headers, String publicationUrl) {
+        return publicationUrlRequest("Publication - Get", "/v1/ops/publication/get", headers, publicationUrl);
+    }
+
+    public static HttpRequestActionBuilder listPublications(String requestName, Map<String, String> headers,
+                                                            String publicationFolderUrl) {
+        String payload = """
+                {"url": "%s"}
+                """.formatted(publicationFolderUrl);
+
+        return http(requestName)
+                .post(dialCoreUrl("/v1/ops/publication/list"))
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder updatePublication(String publicationUrl, String name,
+                                                              String targetFolder, String sourceUrl,
+                                                              String targetUrl) {
+        String payload = """
+                {
+                  "url": "%s",
+                  "name": "%s",
+                  "targetFolder": "%s",
+                  "resources": [
+                    {
+                      "action": "ADD",
+                      "sourceUrl": "%s",
+                      "targetUrl": "%s"
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "source": "roles",
+                      "function": "EQUAL",
+                      "targets": ["default"]
+                    }
+                  ]
+                }""".formatted(publicationUrl, name, targetFolder, sourceUrl, targetUrl);
+
+        return http("Publication - Update")
+                .post(dialCoreUrl("/v1/ops/publication/update"))
+                .headers(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder deletePublication(String publicationUrl) {
+        return publicationUrlRequest("Publication - Delete Pending", "/v1/ops/publication/delete",
+                Configs.DIAL_CORE_API_HEADERS, publicationUrl);
+    }
+
+    public static HttpRequestActionBuilder approvePublication(String requestName, String publicationUrl) {
+        return publicationUrlRequest(requestName, "/v1/ops/publication/approve",
+                Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS, publicationUrl);
+    }
+
+    public static HttpRequestActionBuilder rejectPublication(String publicationUrl) {
+        String payload = """
+                {
+                  "url": "%s",
+                  "comment": "Rejected by publication performance scenario"
+                }""".formatted(publicationUrl);
+
+        return http("Publication - Reject")
+                .post(dialCoreUrl("/v1/ops/publication/reject"))
+                .headers(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder getPublicationRules(Map<String, String> headers, String targetFolder) {
+        String payload = """
+                {"url": "%s"}
+                """.formatted(targetFolder);
+
+        return http("Publication - List Rules")
+                .post(dialCoreUrl("/v1/ops/publication/rule/list"))
+                .headers(headers)
+                .body(StringBody(payload));
+    }
+
+    public static HttpRequestActionBuilder listPublishedResources() {
+        return http("Publication - List Published Resources")
+                .post(dialCoreUrl("/v1/ops/publication/resource/list"))
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .body(StringBody("""
+                        {"resourceTypes": ["PROMPT"]}
+                        """));
+    }
+
+    public static HttpRequestActionBuilder getPublishedPrompt(String targetPath) {
+        return http("Publication - Get Published Prompt")
+                .get(dialCoreUrl("/v1/prompts/public/" + targetPath))
+                .headers(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS);
+    }
+
+    private static HttpRequestActionBuilder publicationUrlRequest(String requestName, String endpoint,
+                                                                  Map<String, String> headers,
+                                                                  String publicationUrl) {
+        String payload = """
+                {"url": "%s"}
+                """.formatted(publicationUrl);
+
+        return http(requestName)
+                .post(dialCoreUrl(endpoint))
                 .headers(headers)
                 .body(StringBody(payload));
     }
@@ -631,7 +920,6 @@ public class Requests {
         return http("MCP - Get Deployment Status")
                 .get(MCP_DEPLOY_HOST + "/api/v1/deployments/#{mcpDeploymentName}")
                 .headers(Configs.MCP_DEPLOY_API_HEADERS)
-                .check(status().is(200))
                 .check(jsonPath("$.status").saveAs("mcpDeploymentStatus"));
     }
 

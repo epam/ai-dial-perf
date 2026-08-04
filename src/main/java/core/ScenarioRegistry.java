@@ -20,47 +20,55 @@ public class ScenarioRegistry {
         }
     }
 
-    private static final Map<String, ScenarioConfig> REGISTRY = Map.of(
-        "aiDialAdminAuth0CreateModel", new ScenarioConfig(
+    private static final Map<String, ScenarioConfig> REGISTRY = Map.ofEntries(
+        Map.entry("aiDialAdminAuth0CreateModel", new ScenarioConfig(
             () -> Scenarios.aiDialAdminAuth0CreateModelScenario(modelSyncAttempts, modelSyncPauseDuration),
             aiAdminBaseUrl
-        ),
-        "aiDialAdminRequests", new ScenarioConfig(
+        )),
+        Map.entry("createKeyWithRole", new ScenarioConfig(
+            Scenarios::createKeyWithRoleScenario,
+            dialCoreBaseUrl
+        )),
+        Map.entry("aiDialAdminRequests", new ScenarioConfig(
             Scenarios::aiDialApplicationRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "toolsetRequests", new ScenarioConfig(
+        )),
+        Map.entry("toolsetRequests", new ScenarioConfig(
             Scenarios::toolsetRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "toolsetUpdateOnly", new ScenarioConfig(
-            Scenarios::toolsetUpdateOnlyScenario,
-            dialCoreBaseUrl
-        ),
-        "promptRequests", new ScenarioConfig(
+        )),
+        Map.entry("promptRequests", new ScenarioConfig(
             Scenarios::promptRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "fileRequests", new ScenarioConfig(
+        )),
+        Map.entry("fileRequests", new ScenarioConfig(
             Scenarios::fileRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "deploymentListing", new ScenarioConfig(
+        )),
+        Map.entry("deploymentListing", new ScenarioConfig(
             Scenarios::deploymentListingScenario,
             dialCoreBaseUrl
-        ),
-        "sharingRequests", new ScenarioConfig(
+        )),
+        Map.entry("sharingRequests", new ScenarioConfig(
             Scenarios::sharingRequestsScenario,
             dialCoreBaseUrl
-        ),
-        "perRequestPermissions", new ScenarioConfig(
+        )),
+        Map.entry("perRequestPermissions", new ScenarioConfig(
             Scenarios::perRequestPermissionsScenario,
             dialCoreBaseUrl
-        ),
-        "runMcpContainer", new ScenarioConfig(
+        )),
+        Map.entry("publicationRequests", new ScenarioConfig(
+            Scenarios::publicationRequestsScenario,
+            aiAdminBaseUrl
+        )),
+        Map.entry("runMcpContainer", new ScenarioConfig(
             Scenarios::runMcpContainerScenario,
             aiAdminBaseUrl
-        )
+        )),
+        Map.entry("mcpContainerMixedRequests", new ScenarioConfig(
+            Scenarios::mcpContainerMixedRequestsScenario,
+            dialCoreBaseUrl
+        ))
     );
 
     public static ScenarioConfig get(String name) {
