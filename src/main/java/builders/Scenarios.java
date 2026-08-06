@@ -4,6 +4,7 @@ import core.Configs;
 import core.PropertiesHolder;
 import io.gatling.javaapi.core.ChainBuilder;
 import io.gatling.javaapi.core.ScenarioBuilder;
+import io.gatling.javaapi.core.Session;
 
 import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
@@ -16,6 +17,8 @@ import static io.gatling.javaapi.http.HttpDsl.status;
 public class Scenarios {
 
     private static final Logger logger = LoggerFactory.getLogger(Scenarios.class);
+    private static final String PUBLIC_BUCKET = "public";
+    private static final String TOOLSET_VERSION = "0.0.1";
 
     public static ChainBuilder aiDialAdminCreateModelAPIChain(int maxAttempts, int pauseDuration) {
         return exec(Requests.getAllModelsAPI())
@@ -110,13 +113,13 @@ public class Scenarios {
     }
 
     public static ChainBuilder aiDialApplicationRequestsChain() {
-        String bucket = PropertiesHolder.appBucket;
+        String bucket = PUBLIC_BUCKET;
         String appPath = PropertiesHolder.appName;
 
         return exec(Requests.getApplication(bucket, appPath))
                 .exec(Requests.mcpToolsList(bucket, appPath))
                 .exec(Requests.getApplicationTypeSchemas())
-                .exec(Requests.getApplicationTypeSchema(PropertiesHolder.applicationSchemaId))
+                .exec(Requests.getApplicationTypeSchema("#{applicationSchemaId}"))
                 .exec(Requests.updateApplicationMcp(bucket, appPath))
                 .exec(Requests.getApplicationMetadata(bucket, appPath));
     }
@@ -127,21 +130,16 @@ public class Scenarios {
     }
 
     public static ChainBuilder toolsetRequestsChain() {
-        String bucket = PropertiesHolder.toolsetBucket;
-        String toolsetName = PropertiesHolder.toolsetName;
-        String toolsetPath = PropertiesHolder.toolsetPath;
-
-        return exec(session -> session.contains("toolsetEndpoint")
-                        ? session
-                        : session.set("toolsetEndpoint", PropertiesHolder.toolsetEndpoint))
+        return exec(Scenarios::prepareToolsetSession)
                 .exec(Requests.getBucket())
-                .exec(Requests.updateToolset(bucket, toolsetPath, toolsetName))
-                .exec(Requests.toolsetMcpToolsList(bucket, toolsetPath))
-                .exec(Requests.getToolset(bucket, toolsetPath))
-                .exec(Requests.getToolsetTools(bucket, toolsetPath))
-                .exec(Requests.getToolsetAllowedTools(bucket, toolsetPath))
-                .exec(Requests.getToolsetMetadata(bucket, toolsetPath))
-                .exec(Requests.deleteToolset(bucket, toolsetPath));
+                .exec(Requests.updateToolset(PUBLIC_BUCKET, "#{toolsetPath}",
+                        "#{toolsetName}", "#{toolsetVersion}"))
+                .exec(Requests.toolsetMcpToolsList(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolset(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetTools(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetAllowedTools(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetMetadata(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.deleteToolset(PUBLIC_BUCKET, "#{toolsetPath}"));
     }
 
     public static ScenarioBuilder toolsetRequestsScenario() {
@@ -151,21 +149,22 @@ public class Scenarios {
     
     public static ScenarioBuilder toolsetUpdateOnlyScenario() {
         return scenario("Toolset update only")
-                .exec(Requests.updateToolset(
-                        PropertiesHolder.toolsetBucket,
-                        PropertiesHolder.toolsetPath,
-                        PropertiesHolder.toolsetName));
+                .exec(Scenarios::prepareToolsetSession)
+                .exec(Requests.updateToolset(PUBLIC_BUCKET, "#{toolsetPath}",
+                        "#{toolsetName}", "#{toolsetVersion}"));
     }
 
     public static ChainBuilder promptRequestsChain() {
-        String bucket = PropertiesHolder.promptBucket;
-        String promptName = PropertiesHolder.promptName;
-        String displayName = PropertiesHolder.promptDisplayName;
-
-        return exec(Requests.updatePrompt(bucket, promptName, displayName))
-                .exec(Requests.getPrompt(bucket, promptName))
-                .exec(Requests.getPromptMetadata(bucket, promptName))
-                .exec(Requests.deletePrompt(bucket, promptName));
+        return exec(session -> {
+                    String name = "perf-prompt-" + java.util.UUID.randomUUID();
+                    return session
+                            .set("promptName", name)
+                            .set("promptDisplayName", "Performance prompt " + name);
+                })
+                .exec(Requests.updatePrompt(PUBLIC_BUCKET, "#{promptName}", "#{promptDisplayName}"))
+                .exec(Requests.getPrompt(PUBLIC_BUCKET, "#{promptName}"))
+                .exec(Requests.getPromptMetadata(PUBLIC_BUCKET, "#{promptName}"))
+                .exec(Requests.deletePrompt(PUBLIC_BUCKET, "#{promptName}"));
     }
 
     public static ScenarioBuilder promptRequestsScenario() {
@@ -174,7 +173,7 @@ public class Scenarios {
     }
 
     public static ChainBuilder fileRequestsChain() {
-        String bucket = PropertiesHolder.fileBucket;
+        String bucket = PUBLIC_BUCKET;
         String fileName = PropertiesHolder.fileName;
         String sourceUrl = "files/" + bucket + "/" + fileName;
 
@@ -185,6 +184,20 @@ public class Scenarios {
                 .exec(Requests.moveResource("files/" + bucket + "/#{fileWorkName}",
                         "files/" + bucket + "/new/#{fileWorkName}"))
                 .exec(Requests.deleteFile(bucket, "new/#{fileWorkName}"));
+    }
+
+    private static Session prepareToolsetSession(Session session) {
+        String name = "perf-toolset-" + java.util.UUID.randomUUID();
+        Session prepared = session
+                .set("toolsetName", name)
+                .set("toolsetPath", name + "__" + TOOLSET_VERSION)
+                .set("toolsetVersion", TOOLSET_VERSION);
+        if (!prepared.contains("toolsetEndpoint")
+                || prepared.getString("toolsetEndpoint") == null
+                || prepared.getString("toolsetEndpoint").isBlank()) {
+            prepared = prepared.set("toolsetEndpoint", PropertiesHolder.toolsetEndpoint);
+        }
+        return prepared;
     }
 
     public static ScenarioBuilder fileRequestsScenario() {
@@ -236,8 +249,7 @@ public class Scenarios {
                         "\"PROMPT\"", "others"))
                 // receiver (Api-Key #2) accepts the invitation and lists resources shared with them
                 .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.acceptInvitation(Configs.DIAL_CORE_API_HEADERS_2, "#{invitationLink}"))
-                        .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
+                        exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
                                 "\"PROMPT\"", "me"))
                         .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
                                 "\"PROMPT\"", "others"))
@@ -351,7 +363,8 @@ public class Scenarios {
                 .exec(Requests.approvePublication("Publication - Approve Publish Request", "#{publicationUrl}"))
                 .exec(Requests.getPublicationRules(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS,
                         "#{publicationTargetFolder}"))
-                .exec(Requests.listPublishedResources())
+                .exec(Requests.listPublications("Publication - List (owner after approval)",
+                        Configs.DIAL_CORE_API_HEADERS, "#{publicationOwnerFolder}"))
                 .exec(Requests.getPublishedPrompt("#{publicationTargetPath}"))
                 // Clean up the public copy through the documented unpublish workflow.
                 .exec(Requests.createUnpublishPublication("#{publicationTargetFolder}",

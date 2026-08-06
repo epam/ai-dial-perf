@@ -26,10 +26,13 @@ public class Auth0AuthenticationUIRequests {
 
     private static final String AUTH0_HOST = "https://" + DIAL_ADMIN_AUTH0_DOMAIN;
     private static final String DIAL_ADMIN_HOST = aiAdminBaseUrl.replaceAll("/$", "");
+    private static final String DEFAULT_AUTH0_SCOPE = "openid email profile offline_access";
     private static final String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 
     private static final Pattern CSRF_PATTERN = Pattern.compile("\"_csrf\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern CLIENT_ID_PATTERN = Pattern.compile(
+            "\"(?:clientID|client_id)\"\\s*:\\s*\"([^\"]+)\"");
 
     public static HttpRequestActionBuilder navigateToSignIn() {
         return http("Navigate to Application")
@@ -145,6 +148,11 @@ public class Auth0AuthenticationUIRequests {
         String codeChallenge = extractQueryParam(loginPageUrl, "code_challenge");
         String codeChallengeMethod = extractQueryParam(loginPageUrl, "code_challenge_method");
         String scope = extractQueryParam(loginPageUrl, "scope");
+        String clientId = firstNonBlank(
+                extractQueryParam(loginPageUrl, "client"),
+                extractQueryParam(loginPageUrl, "client_id"),
+                extractClientIdFromBase64Config(getSessionValue(session, "auth0ConfigBase64")),
+                DIAL_ADMIN_CLIENT_ID);
 
         if (state != null) session = session.set("auth0State", state);
         if (redirectUri != null) session = session.set("auth0RedirectUri", redirectUri);
@@ -152,6 +160,11 @@ public class Auth0AuthenticationUIRequests {
         if (codeChallenge != null) session = session.set("auth0CodeChallenge", codeChallenge);
         if (codeChallengeMethod != null) session = session.set("auth0CodeChallengeMethod", codeChallengeMethod);
         if (scope != null) session = session.set("auth0Scope", scope);
+        if (clientId != null) {
+            session = session.set("auth0ClientId", clientId);
+        } else {
+            log.warn("Could not derive the Auth0 client ID from the login response");
+        }
 
         return session;
     }
@@ -193,8 +206,8 @@ public class Auth0AuthenticationUIRequests {
     private static String buildLoginPayload(Session session) {
         String redirectUri = getSessionOrDefault(session, "auth0RedirectUri",
                 DIAL_ADMIN_HOST + "/api/auth/callback/auth0");
-        String scope = getSessionOrDefault(session, "auth0Scope",
-                "openid email profile offline_access");
+        String scope = getSessionOrDefault(session, "auth0Scope", DEFAULT_AUTH0_SCOPE);
+        String clientId = getSessionOrDefault(session, "auth0ClientId", DIAL_ADMIN_CLIENT_ID);
         String state = session.getString("auth0State");
         String username = session.getString("username");
         String password = session.getString("password");
@@ -224,7 +237,7 @@ public class Auth0AuthenticationUIRequests {
                 "protocol": "oauth2"
             }
             """.formatted(
-                jsonEscape(DIAL_ADMIN_CLIENT_ID),
+                jsonEscape(clientId),
                 jsonEscape(redirectUri),
                 jsonEscape(auth0Tenant),
                 jsonEscape(scope),
@@ -252,13 +265,33 @@ public class Auth0AuthenticationUIRequests {
     }
 
     private static String extractCsrfFromBase64Config(String base64Config) {
+        String decoded = decodeBase64Config(base64Config);
+        if (decoded == null) return null;
+        Matcher m = CSRF_PATTERN.matcher(decoded);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static String extractClientIdFromBase64Config(String base64Config) {
+        String decoded = decodeBase64Config(base64Config);
+        if (decoded == null) return null;
+        Matcher m = CLIENT_ID_PATTERN.matcher(decoded);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static String decodeBase64Config(String base64Config) {
+        if (base64Config == null || base64Config.isBlank()) return null;
         try {
-            String decoded = new String(Base64.getDecoder().decode(base64Config), StandardCharsets.UTF_8);
-            Matcher m = CSRF_PATTERN.matcher(decoded);
-            return m.find() ? m.group(1) : null;
+            return new String(Base64.getDecoder().decode(base64Config), StandardCharsets.UTF_8);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value;
+        }
+        return null;
     }
 
     private static String getSessionValue(Session session, String key) {

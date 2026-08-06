@@ -8,9 +8,8 @@
         <immediateFlush>false</immediateFlush>
     </appender>
 
-    <!-- uncomment and set to DEBUG to log all failing HTTP requests -->
-    <!-- uncomment and set to TRACE to log all HTTP requests -->
-    <logger name="io.gatling.http.engine.response" level="DEBUG" />
+    <!-- Set to DEBUG only while diagnosing HTTP failures: failed-session dumps can contain secrets. -->
+    <logger name="io.gatling.http.engine.response" level="WARN" />
 
     <!-- Scenario / request builders (INFO logs stay below root if root is ERROR) -->
     <logger name="builders" level="INFO"/>

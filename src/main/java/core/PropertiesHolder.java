@@ -43,29 +43,10 @@ public class PropertiesHolder {
     // Optional shortcut for Publications admin operations when UI authentication is unavailable.
     public static final String publicationAdminBearerToken = resolveSystemThenEnv(
             "publicationAdminBearerToken", "PUBLICATION_ADMIN_BEARER_TOKEN", "publicationAdminBearerToken");
-    public static final String appBucket = resolveSystemThenEnv("appBucket", "APP_BUCKET", "appBucket");
     public static final String appName = resolveSystemThenEnv("appName", "APP_NAME", "appName");
-    public static final String applicationSchemaId = resolveSystemThenEnv(
-            "applicationSchemaId", "APPLICATION_SCHEMA_ID", "applicationSchemaId");
-    public static final String toolsetBucket = resolveSystemThenEnv(
-            "toolsetBucket", "TOOLSET_BUCKET", "toolsetBucket");
-    public static final String toolsetName = defaultIfBlank(
-            resolveSystemThenEnv("toolsetName", "TOOLSET_NAME", "toolsetName"),
-            "E2EToolsetWgALZnSYHI");
-    public static final String toolsetPath = defaultIfBlank(
-            resolveSystemThenEnv("toolsetPath", "TOOLSET_PATH", "toolsetPath"),
-            "public/E2EToolsetWgALZnSYHI__0.0.1");
     public static final String toolsetEndpoint = defaultIfBlank(
             resolveSystemThenEnv("toolsetEndpoint", "TOOLSET_ENDPOINT", "toolsetEndpoint"),
             "https://test.com/mcp");
-    public static final String promptBucket = resolveSystemThenEnv(
-            "promptBucket", "PROMPT_BUCKET", "promptBucket");
-    public static final String promptName = resolveSystemThenEnv(
-            "promptName", "PROMPT_NAME", "promptName");
-    public static final String promptDisplayName = resolveSystemThenEnv(
-            "promptDisplayName", "PROMPT_DISPLAY_NAME", "promptDisplayName");
-    public static final String fileBucket = resolveSystemThenEnv(
-            "fileBucket", "FILE_BUCKET", "fileBucket");
     public static final String fileName = resolveSystemThenEnv(
             "fileName", "FILE_NAME", "fileName");
 
@@ -86,8 +67,6 @@ public class PropertiesHolder {
 
     public static final String NEXTAUTH_SECRET = resolveDotEnvFirst(
             "nextAuthSecret", "NEXTAUTH_SECRET", "nextAuthSecret");
-    public static final String DIAL_ADMIN_SCOPE = resolveDotEnvFirst(
-            "dialAdminScope", "DIAL_ADMIN_SCOPE", "scope");
     public static final String DIAL_ADMIN_AUTH0_DOMAIN = resolveDotEnvFirst(
             "dialAdminAuth0Domain", "DIAL_ADMIN_AUTH0_DOMAIN", "AUTH_0_DOMAIN", "AUTH0_DOMAIN");
     public static final String DIAL_ADMIN_CLIENT_ID = resolveDotEnvFirst(

@@ -7,16 +7,31 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 | Scenario | Description |
 |---|---|
 | `aiDialAdminCreateModelAPI` | Azure AD authentication + Create Model via API + Sync model state polling |
+| `createKeyWithRole` | Create a unique role and key with the DIAL Core API key, then verify the key's assigned role |
 | `sharingRequests` | Full DIAL Core **Sharing** API workflow: create/list/copy/revoke shared resources, invitation list/get/accept/delete, and (with a second Api-Key) receiver accept/discard |
 | `perRequestPermissions` | DIAL Core per-request-permissions grant/list/revoke (requires a per-request API key — a plain Api-Key returns 403) |
+| `publicationRequests` | Full DIAL Core **Publications** workflow: create/get/list/update/approve/reject/delete, rules and published-resource listing, plus unpublish cleanup |
+| `mcpContainerMixedRequests` | Authenticates, starts an MCP container, saves its URL as `toolsetEndpoint`, then runs all six in-scope request workflows with one shared configurable probability (excludes per-request permissions) |
 
 ### Sharing scenario configuration
 
 The `sharingRequests` scenario needs a DIAL Core Api-Key for the resource owner
-(`dialCoreApiKey`). Provide `dialCoreApiKey2` (a second identity) to also exercise
+(`DIAL_CORE_API_KEY`). Provide `DIAL_CORE_API_KEY_2` (a second identity) to also exercise
 the receiver-side accept/discard steps; leaving it empty runs the owner-only subset.
-The `perRequestPermissions` scenario additionally uses `shareReceiverDeployment`
-(the receiving deployment id).
+The `perRequestPermissions` scenario additionally uses `SHARE_RECEIVER_DEPLOYMENT`
+(the receiving deployment id) and `DIAL_CORE_PER_REQUEST_API_KEY` (a per-request key
+issued by DIAL Core to the sending deployment). For backwards compatibility,
+the per-request key falls back to `DIAL_CORE_API_KEY` when it is not set.
+
+### Publications scenario configuration
+
+The `publicationRequests` scenario uses `DIAL_CORE_API_KEY` for the publication owner
+and authenticates the administrator through the existing Admin UI Auth0 flow. The
+administrator credentials must be present in `src/main/resources/data/azure-users.csv`.
+If UI authentication is unavailable, provide an administrator token directly through
+`publicationAdminBearerToken` or `PUBLICATION_ADMIN_BEARER_TOKEN`.
+Each iteration uses unique private and public prompt paths and removes both through
+the publication unpublish workflow and source-resource cleanup.
 
 ## Prerequisites
 
@@ -32,21 +47,37 @@ framework and the [MCP deployment script](#mcp-container-deployment-script-pytho
 Create it with the following keys:
 
 ```
-# --- Auth (used by Gatling + MCP deploy script) ---
+# --- Admin authentication and service URLs ---
 NEXTAUTH_SECRET=<nextauth-secret>          # secret used to decrypt the NextAuth session cookie
-DIAL_ADMIN_CLIENT_ID=<Azure AD / Auth0 client ID>
-
-# --- Base URLs (used by the MCP deploy script) ---
 URL_ADMIN=https://<admin-app-host>          # Admin app base URL (Auth0 login)
 URL_DEPLOY_SERVICE=https://<deployment-manager-host>   # deployment-manager API base URL
+
+# --- DIAL Core ---
+DIAL_CORE_BASE_URL=https://<dial-core-host>
+DIAL_CORE_API_KEY=<owner-api-key>
+DIAL_CORE_API_KEY_2=<receiver-api-key>      # optional; sharing receiver-side steps only
+
+# --- Existing public fixtures / standalone endpoint ---
+APP_NAME=<existing-public-application>
+TOOLSET_ENDPOINT=https://<standalone-mcp-endpoint>
+FILE_NAME=<existing-public-file>
 ```
 
 | Variable | Used by | Description |
 |---|---|---|
 | `NEXTAUTH_SECRET` | Gatling + deploy script | Secret that derives the NextAuth cookie-decryption key |
-| `DIAL_ADMIN_CLIENT_ID` | Gatling + deploy script | Azure AD / Auth0 client ID |
-| `URL_ADMIN` | Deploy script | Admin app base URL (Auth0 login) |
-| `URL_DEPLOY_SERVICE` | Deploy script | Deployment-manager API base URL |
+| `URL_ADMIN` | Gatling + deploy script | Admin app base URL used for Auth0 login |
+| `URL_DEPLOY_SERVICE` | Gatling + deploy script | Deployment-manager API base URL |
+| `DIAL_CORE_BASE_URL` | Gatling | DIAL Core base URL |
+| `DIAL_CORE_API_KEY` | Gatling | Owner identity used by DIAL Core scenarios |
+| `DIAL_CORE_API_KEY_2` | Gatling | Optional second identity used by sharing receiver-side steps |
+| `APP_NAME` | Application requests | Existing application in the public bucket |
+| `TOOLSET_ENDPOINT` | Standalone toolset requests | MCP endpoint; mixed MCP tests derive it from the deployment response |
+| `FILE_NAME` | File requests | Existing source file in the public bucket |
+
+Auth0 scope and client ID are derived from the login response. Prompt and toolset
+identifiers are generated per iteration, the application schema ID is selected from
+the schema-list response, and all fixture buckets use the `public` code constant.
 
 > The `.env` file is git-ignored — never commit real secrets.
 
@@ -83,6 +114,18 @@ dial_admin@example.com,<password>
   -DdurationRampUp=1m \
   -DdurationRampDown=30s
 ```
+
+### Create a key with a role
+
+This scenario uses `DIAL_CORE_API_KEY` from the project `.env` file; it does not perform UI authorization.
+
+```bash
+gradle gatlingRun --simulation=DebugSimulation \
+  -DscenarioName=createKeyWithRole \
+  -Dusers=1 \
+  -DdialCoreBaseUrl=https://core-ai-dial-admin-frontend-pr-4096.gke.test.dial.parts/
+```
+
 
 ## MCP Container Deployment Script (Python)
 

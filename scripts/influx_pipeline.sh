@@ -3,8 +3,12 @@ set -euo pipefail
 
 GATLING_RESULTS_DIR=${GATLING_RESULTS_DIR:-"build/reports/gatling"}
 ENV_NAME=${ENV_NAME:-unknown}
+INFLUX_ORG=${INFLUX_ORG:-dial}
+INFLUX_BUCKET=${INFLUX_BUCKET:-default}
+export INFLUX_ORG INFLUX_BUCKET
 
 X2I_VERSION=${X2I_VERSION:-x2i-1.1.0-alpha-2}
+X2I_STOP_TIMEOUT=${X2I_STOP_TIMEOUT:-900}
 X2I_BIN="/usr/local/bin/x2i"
 X2I_PIDFILE="${PWD}/x2i.pid"
 X2I_LOGFILE="${PWD}/x2i.log"
@@ -54,8 +58,8 @@ cmd_install() {
 }
 
 cmd_start() {
-  [ -z "${INFLUX_HOST}" ] && echo "::error::INFLUX_HOST is not set" && exit 1
-  [ -z "${INFLUX_TOKEN}" ] && echo "::error::INFLUX_TOKEN is not set" && exit 1
+  [ -z "${INFLUX_HOST:-}" ] && echo "::error::INFLUX_HOST is not set" && exit 1
+  [ -z "${INFLUX_TOKEN:-}" ] && echo "::error::INFLUX_TOKEN is not set" && exit 1
 
   echo "=== Starting Telegraf ==="
   start-stop-daemon --start --background \
@@ -76,9 +80,10 @@ cmd_start() {
   x2i_pid=$(
     "${X2I_BIN}" "${GATLING_RESULTS_DIR}" \
       -a "http://localhost:${NGINX_X2I_PORT}" \
-      -b "default" \
+      -b "${INFLUX_BUCKET}" \
       -y "statgpt" \
       -t "${ENV_NAME}" \
+      -s "${X2I_STOP_TIMEOUT}" \
       -m 5000 \
       -l INFO \
       -o "${X2I_LOGFILE}" \
@@ -93,10 +98,18 @@ cmd_stop() {
     local x2i_pid
     x2i_pid=$(cat "${X2I_PIDFILE}")
     echo "=== Stopping x2i (PID: ${x2i_pid}) ==="
+    echo "Waiting 60s for x2i to ingest final entries from simulation.log..."
+    sleep 60
     kill -INT "${x2i_pid}" 2>/dev/null || true
-    echo "Waiting for x2i to flush remaining metrics..."
-    sleep 30
-    kill -0 "${x2i_pid}" 2>/dev/null && kill -KILL "${x2i_pid}" 2>/dev/null || true
+    echo "Waiting up to ${X2I_STOP_TIMEOUT}s for x2i to flush and exit..."
+    for ((i = 0; i < X2I_STOP_TIMEOUT; i++)); do
+      kill -0 "${x2i_pid}" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "${x2i_pid}" 2>/dev/null; then
+      echo "::warning::x2i did not stop within ${X2I_STOP_TIMEOUT}s; forcing shutdown"
+      kill -KILL "${x2i_pid}" 2>/dev/null || true
+    fi
     rm -f "${X2I_PIDFILE}"
     echo "x2i stopped"
   else

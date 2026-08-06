@@ -2,6 +2,7 @@
 .env
 *.txt
 *.json
+*.pid
 .DS_Store
 gatling_stats.md
 .idea/
