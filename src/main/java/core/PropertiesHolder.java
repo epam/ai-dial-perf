@@ -62,7 +62,7 @@ public class PropertiesHolder {
     public static final int mcpStatusPollDuration = intSystemProperty("mcpStatusPollDuration", 10);
     public static final boolean mcpCleanup = Boolean.parseBoolean(System.getProperty("mcpCleanup", "false"));
     // Shared independent execution probability for every request workflow in
-    // mcpContainerMixedRequests. At 100, all six in-scope workflows run in each iteration.
+    // AdminCoreSystem. At 100, all six in-scope workflows run in each iteration.
     public static final double mixedRequestProbability = doubleSystemProperty("mixedRequestProbability", 100.0);
 
     public static final String NEXTAUTH_SECRET = resolveDotEnvFirst(

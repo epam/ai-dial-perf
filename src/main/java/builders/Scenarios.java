@@ -8,11 +8,11 @@ import io.gatling.javaapi.core.Session;
 
 import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.gatling.javaapi.core.CoreDsl.*;
-import static io.gatling.javaapi.http.HttpDsl.status;
 
 public class Scenarios {
 
@@ -20,6 +20,10 @@ public class Scenarios {
     private static final String PUBLIC_BUCKET = "public";
     private static final String TOOLSET_VERSION = "0.0.1";
     private static final String DEFAULT_ROLE_NAME = "default";
+    private static final AtomicReference<McpRunResources> MCP_RESOURCES = new AtomicReference<>();
+
+    private record McpRunResources(String ownerApiKey, String receiverApiKey, String endpoint) {
+    }
 
     public static ChainBuilder aiDialAdminCreateModelAPIChain(int maxAttempts, int pauseDuration) {
         return exec(Requests.getAllModelsAPI())
@@ -391,7 +395,12 @@ public class Scenarios {
                 .exec(Auth0AuthenticationUIRequests::extractAuth0LoginParams)
                 .exec(Auth0AuthenticationUIRequests::prepareCsrfToken)
                 .exec(Auth0AuthenticationUIRequests.usernamePasswordChallenge())
-                .exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
+                .exitHereIfFailed()
+                .tryMax(3).on(
+                        exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
+                                .doIf(Session::isFailed).then(pause(30))
+                )
+                .exitHereIfFailed()
                 .exec(Auth0AuthenticationUIRequests.loginCallback());
     }
 
@@ -572,18 +581,16 @@ public class Scenarios {
                         .then(exec(session -> session.markAsSucceeded()).exec(requestChain)));
     }
 
-    /**
-     * Creates one MCP container as a precondition, exposes its URL as
-     * {@code toolsetEndpoint}, then independently executes each request workflow
-     * in the mixed-scenario scope with the same configured probability. A
-     * probability of 100 runs all six workflows.
-     */
-    public static ScenarioBuilder mcpContainerMixedRequestsScenario() {
-        return scenario("MCP container + mixed requests")
+    public static ScenarioBuilder adminCoreSystemSetupScenario() {
+        return scenario("Admin Core System setup")
+                .exec(session -> {
+                    MCP_RESOURCES.set(null);
+                    return session;
+                })
                 .exec(aiDialAdminAuth0UIAuthChain())
                 .exec(createCoreApiKeysChain())
                 .exitHereIfFailed()
-                // Cleanup must stay disabled here because the following toolset workflow uses the container.
+                // Cleanup must stay disabled because the workload population reuses this container.
                 .exec(runMcpContainerChain(
                         PropertiesHolder.mcpBuildMaxAttempts, PropertiesHolder.mcpBuildPollDuration,
                         PropertiesHolder.mcpStatusMaxAttempts, PropertiesHolder.mcpStatusPollDuration,
@@ -594,9 +601,33 @@ public class Scenarios {
                         logger.error("MCP precondition failed: no running container endpoint is available");
                         return session.markAsFailed();
                     }
-                    String endpoint = session.getString("mcpContainerUrl");
-                    logger.info("Saved MCP endpoint as toolsetEndpoint='{}'", endpoint);
-                    return session.set("toolsetEndpoint", endpoint);
+                    McpRunResources resources = new McpRunResources(
+                            session.getString("DIAL_CORE_API_KEY"),
+                            session.getString("DIAL_CORE_API_KEY_2"),
+                            session.getString("mcpContainerUrl"));
+                    MCP_RESOURCES.set(resources);
+                    logger.info("MCP setup completed; resources are ready for the workload population");
+                    return session;
+                })
+                .exitHereIfFailed();
+    }
+
+    /**
+     * Reuses the keys and MCP endpoint created once by {@link #adminCoreSystemSetupScenario()},
+     * then independently executes each request workflow with the configured probability.
+     */
+    public static ScenarioBuilder adminCoreSystemScenario() {
+        return scenario("Admin Core System")
+                .exec(session -> {
+                    McpRunResources resources = MCP_RESOURCES.get();
+                    if (resources == null) {
+                        logger.error("MCP workload cannot start because setup resources are unavailable");
+                        return session.markAsFailed();
+                    }
+                    return session
+                            .set("DIAL_CORE_API_KEY", resources.ownerApiKey())
+                            .set("DIAL_CORE_API_KEY_2", resources.receiverApiKey())
+                            .set("toolsetEndpoint", resources.endpoint());
                 })
                 .exitHereIfFailed()
                 .exec(requestChainWithProbability("Mixed - Toolset requests", toolsetRequestsChain()))

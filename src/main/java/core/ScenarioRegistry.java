@@ -12,10 +12,18 @@ public class ScenarioRegistry {
 
     public static class ScenarioConfig {
         public final Supplier<ScenarioBuilder> scenario;
+        public final Supplier<ScenarioBuilder> setupScenario;
         public final String baseUrl;
 
         public ScenarioConfig(Supplier<ScenarioBuilder> scenario, String baseUrl) {
+            this(scenario, null, baseUrl);
+        }
+
+        public ScenarioConfig(Supplier<ScenarioBuilder> scenario,
+                              Supplier<ScenarioBuilder> setupScenario,
+                              String baseUrl) {
             this.scenario = scenario;
+            this.setupScenario = setupScenario;
             this.baseUrl = baseUrl;
         }
     }
@@ -65,8 +73,9 @@ public class ScenarioRegistry {
             Scenarios::runMcpContainerScenario,
             aiAdminBaseUrl
         )),
-        Map.entry("mcpContainerMixedRequests", new ScenarioConfig(
-            Scenarios::mcpContainerMixedRequestsScenario,
+        Map.entry("AdminCoreSystem", new ScenarioConfig(
+            Scenarios::adminCoreSystemScenario,
+            Scenarios::adminCoreSystemSetupScenario,
             dialCoreBaseUrl
         ))
     );
