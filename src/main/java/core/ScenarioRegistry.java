@@ -26,8 +26,8 @@ public class ScenarioRegistry {
             aiAdminBaseUrl
         )),
         Map.entry("createKeyWithRole", new ScenarioConfig(
-            Scenarios::createKeyWithRoleScenario,
-            dialCoreBaseUrl
+            CreateKeyWithRoleScenario::build,
+            aiAdminBaseUrl
         )),
         Map.entry("aiDialAdminRequests", new ScenarioConfig(
             Scenarios::aiDialApplicationRequestsScenario,

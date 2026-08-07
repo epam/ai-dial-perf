@@ -72,18 +72,9 @@ public class Requests {
     ***************************************************************
     */
 
-    public static HttpRequestActionBuilder createRoleAPI() {
-        return http("Create Role")
-                .post("/api/v1/roles")
-                .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
-                .body(StringBody("""
-                        {"name":"#{roleName}","displayName":"#{roleName}","description":""}
-                        """));
-    }
-
     public static HttpRequestActionBuilder createKeyWithRoleAPI() {
         return http("Create Key With Role")
-                .post("/api/v1/keys")
+                .post(aiAdminUrl("/api/v1/keys"))
                 .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
                 .body(StringBody("""
                         {"name":"#{keyName}","key":"#{keyValue}","displayName":"#{displayName}","project":"#{project}","secured":true,"roles":["#{roleName}"],"description":"string","projectContactPoint":"string","expiresAt":null,"validityState":{"message":"string","valid":true},"topics":["string"],"allowedIpAddressRanges":null}
@@ -92,8 +83,13 @@ public class Requests {
 
     public static HttpRequestActionBuilder getKeyAPI(String keyName) {
         return http("Get Key And Verify Assigned Role")
-                .get("/api/v1/keys/" + keyName)
+                .get(aiAdminUrl("/api/v1/keys/") + keyName)
                 .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS);
+    }
+
+    private static String aiAdminUrl(String path) {
+        String baseUrl = PropertiesHolder.aiAdminBaseUrl.replaceAll("/+$", "");
+        return baseUrl + (path.startsWith("/") ? path : "/" + path);
     }
 
     /*
@@ -101,7 +97,6 @@ public class Requests {
     * Application requests
     ***************************************************************
     */
-
     public static HttpRequestActionBuilder mcpToolsList(String bucket, String appPath) {
         return http("MCP tools/list")
                 .post("/v1/deployments/applications/" + bucket + "/" + appPath + "/mcp")

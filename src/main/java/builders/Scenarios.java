@@ -19,6 +19,7 @@ public class Scenarios {
     private static final Logger logger = LoggerFactory.getLogger(Scenarios.class);
     private static final String PUBLIC_BUCKET = "public";
     private static final String TOOLSET_VERSION = "0.0.1";
+    private static final String DEFAULT_ROLE_NAME = "default";
 
     public static ChainBuilder aiDialAdminCreateModelAPIChain(int maxAttempts, int pauseDuration) {
         return exec(Requests.getAllModelsAPI())
@@ -81,30 +82,6 @@ public class Scenarios {
         return scenario("AI Dial Admin - Auth0 Auth + Create Model")
                 .exec(aiDialAdminAuth0UIAuthChain())
                 .exec(aiDialAdminCreateModelAPIChain(maxAttempts, pauseDuration));
-    }
-
-    /**
-     * Creates a unique role, assigns it to a new key, and verifies that assignment.
-     * The role/key payloads intentionally match the original API test template.
-     */
-    public static ChainBuilder aiDialAdminCreateKeyWithRoleChain() {
-        return exec(session -> session
-                .set("roleName", "default")
-                .set("keyName", "Key-" + java.util.UUID.randomUUID())
-                .set("keyValue", java.util.UUID.randomUUID().toString())
-                .set("project", "Project-" + java.util.UUID.randomUUID())
-                .set("displayName", "DisplayName-" + java.util.UUID.randomUUID()))
-                .exec(Requests.createKeyWithRoleAPI()
-                        .check(status().in(200, 201, 204)))
-                .exec(Requests.getKeyAPI("#{keyName}")
-                        .check(status().is(200))
-                        .check(jsonPath("$.roles[0]").isEL("#{roleName}")));
-    }
-
-    public static ScenarioBuilder createKeyWithRoleScenario() {
-        return scenario("Create Key With Role")
-                .exec(aiDialAdminAuth0UIAuthChain())
-                .exec(aiDialAdminCreateKeyWithRoleChain());
     }
 
     public static ScenarioBuilder aiDialAdminAuth0UIAuthScenario() {
@@ -200,6 +177,28 @@ public class Scenarios {
         return prepared;
     }
 
+    private static ChainBuilder createCoreApiKeysChain() {
+        return exec(session -> prepareCoreApiKeyCreation(session, "owner"))
+                .exec(Requests.createKeyWithRoleAPI())
+                .exitHereIfFailed()
+                .exec(session -> session.set("DIAL_CORE_API_KEY", session.getString("keyValue")))
+                .exec(session -> prepareCoreApiKeyCreation(session, "receiver"))
+                .exec(Requests.createKeyWithRoleAPI())
+                .exitHereIfFailed()
+                .exec(session -> session.set("DIAL_CORE_API_KEY_2", session.getString("keyValue")));
+    }
+
+    private static Session prepareCoreApiKeyCreation(Session session, String identity) {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String apiKey = java.util.UUID.randomUUID().toString();
+        return session
+                .set("roleName", DEFAULT_ROLE_NAME)
+                .set("keyName", "mcp-mixed-" + identity + "-" + suffix)
+                .set("keyValue", apiKey)
+                .set("project", "mcp-mixed-project-" + suffix)
+                .set("displayName", "MCP Mixed " + identity + " " + suffix);
+    }
+
     public static ScenarioBuilder fileRequestsScenario() {
         return scenario("File requests")
                 .exec(fileRequestsChain());
@@ -248,22 +247,18 @@ public class Scenarios {
                 .exec(Requests.getSharedResources("Share - List (shared by me)", Configs.DIAL_CORE_API_HEADERS,
                         "\"PROMPT\"", "others"))
                 // receiver (Api-Key #2) accepts the invitation and lists resources shared with them
-                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                        .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
-                                "\"PROMPT\"", "others"))
-                )
+                .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
+                .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
+                        "\"PROMPT\"", "others"))
                 // copy the access of resource A onto resource B
                 .exec(Requests.copySharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}", "#{shareUrlB}"))
                 // receiver discards resource B shared with them
-                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.getSharedResources("Share - List (after copy)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                        .exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
-                        .exec(Requests.getSharedResources("Share - List (after discard)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                )
+                .exec(Requests.getSharedResources("Share - List (after copy)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
+                .exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
+                .exec(Requests.getSharedResources("Share - List (after discard)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
                 // owner revokes all shared access to resource A
                 .exec(Requests.revokeSharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}"))
                 .exec(Requests.getSharedResources("Share - List (after revoke)", Configs.DIAL_CORE_API_HEADERS,
@@ -586,6 +581,8 @@ public class Scenarios {
     public static ScenarioBuilder mcpContainerMixedRequestsScenario() {
         return scenario("MCP container + mixed requests")
                 .exec(aiDialAdminAuth0UIAuthChain())
+                .exec(createCoreApiKeysChain())
+                .exitHereIfFailed()
                 // Cleanup must stay disabled here because the following toolset workflow uses the container.
                 .exec(runMcpContainerChain(
                         PropertiesHolder.mcpBuildMaxAttempts, PropertiesHolder.mcpBuildPollDuration,
