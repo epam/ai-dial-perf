@@ -4,18 +4,26 @@ import core.Configs;
 import core.PropertiesHolder;
 import io.gatling.javaapi.core.ChainBuilder;
 import io.gatling.javaapi.core.ScenarioBuilder;
+import io.gatling.javaapi.core.Session;
 
 import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.gatling.javaapi.core.CoreDsl.*;
-import static io.gatling.javaapi.http.HttpDsl.status;
 
 public class Scenarios {
 
     private static final Logger logger = LoggerFactory.getLogger(Scenarios.class);
+    private static final String PUBLIC_BUCKET = "public";
+    private static final String TOOLSET_VERSION = "0.0.1";
+    private static final String DEFAULT_ROLE_NAME = "default";
+    private static final AtomicReference<McpRunResources> MCP_RESOURCES = new AtomicReference<>();
+
+    private record McpRunResources(String ownerApiKey, String receiverApiKey, String endpoint) {
+    }
 
     public static ChainBuilder aiDialAdminCreateModelAPIChain(int maxAttempts, int pauseDuration) {
         return exec(Requests.getAllModelsAPI())
@@ -80,43 +88,19 @@ public class Scenarios {
                 .exec(aiDialAdminCreateModelAPIChain(maxAttempts, pauseDuration));
     }
 
-    /**
-     * Creates a unique role, assigns it to a new key, and verifies that assignment.
-     * The role/key payloads intentionally match the original API test template.
-     */
-    public static ChainBuilder aiDialAdminCreateKeyWithRoleChain() {
-        return exec(session -> session
-                .set("roleName", "default")
-                .set("keyName", "Key-" + java.util.UUID.randomUUID())
-                .set("keyValue", java.util.UUID.randomUUID().toString())
-                .set("project", "Project-" + java.util.UUID.randomUUID())
-                .set("displayName", "DisplayName-" + java.util.UUID.randomUUID()))
-                .exec(Requests.createKeyWithRoleAPI()
-                        .check(status().in(200, 201, 204)))
-                .exec(Requests.getKeyAPI("#{keyName}")
-                        .check(status().is(200))
-                        .check(jsonPath("$.roles[0]").isEL("#{roleName}")));
-    }
-
-    public static ScenarioBuilder createKeyWithRoleScenario() {
-        return scenario("Create Key With Role")
-                .exec(aiDialAdminAuth0UIAuthChain())
-                .exec(aiDialAdminCreateKeyWithRoleChain());
-    }
-
     public static ScenarioBuilder aiDialAdminAuth0UIAuthScenario() {
         return scenario("AI Dial Admin - Auth0 UI Auth")
                 .exec(aiDialAdminAuth0UIAuthChain());
     }
 
     public static ChainBuilder aiDialApplicationRequestsChain() {
-        String bucket = PropertiesHolder.appBucket;
+        String bucket = PUBLIC_BUCKET;
         String appPath = PropertiesHolder.appName;
 
         return exec(Requests.getApplication(bucket, appPath))
                 .exec(Requests.mcpToolsList(bucket, appPath))
                 .exec(Requests.getApplicationTypeSchemas())
-                .exec(Requests.getApplicationTypeSchema(PropertiesHolder.applicationSchemaId))
+                .exec(Requests.getApplicationTypeSchema("#{applicationSchemaId}"))
                 .exec(Requests.updateApplicationMcp(bucket, appPath))
                 .exec(Requests.getApplicationMetadata(bucket, appPath));
     }
@@ -127,21 +111,16 @@ public class Scenarios {
     }
 
     public static ChainBuilder toolsetRequestsChain() {
-        String bucket = PropertiesHolder.toolsetBucket;
-        String toolsetName = PropertiesHolder.toolsetName;
-        String toolsetPath = PropertiesHolder.toolsetPath;
-
-        return exec(session -> session.contains("toolsetEndpoint")
-                        ? session
-                        : session.set("toolsetEndpoint", PropertiesHolder.toolsetEndpoint))
+        return exec(Scenarios::prepareToolsetSession)
                 .exec(Requests.getBucket())
-                .exec(Requests.updateToolset(bucket, toolsetPath, toolsetName))
-                .exec(Requests.toolsetMcpToolsList(bucket, toolsetPath))
-                .exec(Requests.getToolset(bucket, toolsetPath))
-                .exec(Requests.getToolsetTools(bucket, toolsetPath))
-                .exec(Requests.getToolsetAllowedTools(bucket, toolsetPath))
-                .exec(Requests.getToolsetMetadata(bucket, toolsetPath))
-                .exec(Requests.deleteToolset(bucket, toolsetPath));
+                .exec(Requests.updateToolset(PUBLIC_BUCKET, "#{toolsetPath}",
+                        "#{toolsetName}", "#{toolsetVersion}"))
+                .exec(Requests.toolsetMcpToolsList(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolset(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetTools(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetAllowedTools(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.getToolsetMetadata(PUBLIC_BUCKET, "#{toolsetPath}"))
+                .exec(Requests.deleteToolset(PUBLIC_BUCKET, "#{toolsetPath}"));
     }
 
     public static ScenarioBuilder toolsetRequestsScenario() {
@@ -151,21 +130,22 @@ public class Scenarios {
     
     public static ScenarioBuilder toolsetUpdateOnlyScenario() {
         return scenario("Toolset update only")
-                .exec(Requests.updateToolset(
-                        PropertiesHolder.toolsetBucket,
-                        PropertiesHolder.toolsetPath,
-                        PropertiesHolder.toolsetName));
+                .exec(Scenarios::prepareToolsetSession)
+                .exec(Requests.updateToolset(PUBLIC_BUCKET, "#{toolsetPath}",
+                        "#{toolsetName}", "#{toolsetVersion}"));
     }
 
     public static ChainBuilder promptRequestsChain() {
-        String bucket = PropertiesHolder.promptBucket;
-        String promptName = PropertiesHolder.promptName;
-        String displayName = PropertiesHolder.promptDisplayName;
-
-        return exec(Requests.updatePrompt(bucket, promptName, displayName))
-                .exec(Requests.getPrompt(bucket, promptName))
-                .exec(Requests.getPromptMetadata(bucket, promptName))
-                .exec(Requests.deletePrompt(bucket, promptName));
+        return exec(session -> {
+                    String name = "perf-prompt-" + java.util.UUID.randomUUID();
+                    return session
+                            .set("promptName", name)
+                            .set("promptDisplayName", "Performance prompt " + name);
+                })
+                .exec(Requests.updatePrompt(PUBLIC_BUCKET, "#{promptName}", "#{promptDisplayName}"))
+                .exec(Requests.getPrompt(PUBLIC_BUCKET, "#{promptName}"))
+                .exec(Requests.getPromptMetadata(PUBLIC_BUCKET, "#{promptName}"))
+                .exec(Requests.deletePrompt(PUBLIC_BUCKET, "#{promptName}"));
     }
 
     public static ScenarioBuilder promptRequestsScenario() {
@@ -174,7 +154,7 @@ public class Scenarios {
     }
 
     public static ChainBuilder fileRequestsChain() {
-        String bucket = PropertiesHolder.fileBucket;
+        String bucket = PUBLIC_BUCKET;
         String fileName = PropertiesHolder.fileName;
         String sourceUrl = "files/" + bucket + "/" + fileName;
 
@@ -185,6 +165,42 @@ public class Scenarios {
                 .exec(Requests.moveResource("files/" + bucket + "/#{fileWorkName}",
                         "files/" + bucket + "/new/#{fileWorkName}"))
                 .exec(Requests.deleteFile(bucket, "new/#{fileWorkName}"));
+    }
+
+    private static Session prepareToolsetSession(Session session) {
+        String name = "perf-toolset-" + java.util.UUID.randomUUID();
+        Session prepared = session
+                .set("toolsetName", name)
+                .set("toolsetPath", name + "__" + TOOLSET_VERSION)
+                .set("toolsetVersion", TOOLSET_VERSION);
+        if (!prepared.contains("toolsetEndpoint")
+                || prepared.getString("toolsetEndpoint") == null
+                || prepared.getString("toolsetEndpoint").isBlank()) {
+            prepared = prepared.set("toolsetEndpoint", PropertiesHolder.toolsetEndpoint);
+        }
+        return prepared;
+    }
+
+    private static ChainBuilder createCoreApiKeysChain() {
+        return exec(session -> prepareCoreApiKeyCreation(session, "owner"))
+                .exec(Requests.createKeyWithRoleAPI())
+                .exitHereIfFailed()
+                .exec(session -> session.set("DIAL_CORE_API_KEY", session.getString("keyValue")))
+                .exec(session -> prepareCoreApiKeyCreation(session, "receiver"))
+                .exec(Requests.createKeyWithRoleAPI())
+                .exitHereIfFailed()
+                .exec(session -> session.set("DIAL_CORE_API_KEY_2", session.getString("keyValue")));
+    }
+
+    private static Session prepareCoreApiKeyCreation(Session session, String identity) {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String apiKey = java.util.UUID.randomUUID().toString();
+        return session
+                .set("roleName", DEFAULT_ROLE_NAME)
+                .set("keyName", "mcp-mixed-" + identity + "-" + suffix)
+                .set("keyValue", apiKey)
+                .set("project", "mcp-mixed-project-" + suffix)
+                .set("displayName", "MCP Mixed " + identity + " " + suffix);
     }
 
     public static ScenarioBuilder fileRequestsScenario() {
@@ -235,23 +251,18 @@ public class Scenarios {
                 .exec(Requests.getSharedResources("Share - List (shared by me)", Configs.DIAL_CORE_API_HEADERS,
                         "\"PROMPT\"", "others"))
                 // receiver (Api-Key #2) accepts the invitation and lists resources shared with them
-                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.acceptInvitation(Configs.DIAL_CORE_API_HEADERS_2, "#{invitationLink}"))
-                        .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                        .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
-                                "\"PROMPT\"", "others"))
-                )
+                .exec(Requests.getSharedResources("Share - List (shared with me)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
+                .exec(Requests.getSharedResources("Share - List (accepted, shared by me)", Configs.DIAL_CORE_API_HEADERS,
+                        "\"PROMPT\"", "others"))
                 // copy the access of resource A onto resource B
                 .exec(Requests.copySharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}", "#{shareUrlB}"))
                 // receiver discards resource B shared with them
-                .doIf(session -> !PropertiesHolder.dialCoreApiKey2.isEmpty()).then(
-                        exec(Requests.getSharedResources("Share - List (after copy)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                        .exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
-                        .exec(Requests.getSharedResources("Share - List (after discard)", Configs.DIAL_CORE_API_HEADERS_2,
-                                "\"PROMPT\"", "me"))
-                )
+                .exec(Requests.getSharedResources("Share - List (after copy)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
+                .exec(Requests.discardSharedResources(Configs.DIAL_CORE_API_HEADERS_2, "#{shareUrlB}"))
+                .exec(Requests.getSharedResources("Share - List (after discard)", Configs.DIAL_CORE_API_HEADERS_2,
+                        "\"PROMPT\"", "me"))
                 // owner revokes all shared access to resource A
                 .exec(Requests.revokeSharedResources(Configs.DIAL_CORE_API_HEADERS, "#{shareUrlA}"))
                 .exec(Requests.getSharedResources("Share - List (after revoke)", Configs.DIAL_CORE_API_HEADERS,
@@ -351,7 +362,8 @@ public class Scenarios {
                 .exec(Requests.approvePublication("Publication - Approve Publish Request", "#{publicationUrl}"))
                 .exec(Requests.getPublicationRules(Configs.DIAL_CORE_PUBLICATION_ADMIN_HEADERS,
                         "#{publicationTargetFolder}"))
-                .exec(Requests.listPublishedResources())
+                .exec(Requests.listPublications("Publication - List (owner after approval)",
+                        Configs.DIAL_CORE_API_HEADERS, "#{publicationOwnerFolder}"))
                 .exec(Requests.getPublishedPrompt("#{publicationTargetPath}"))
                 // Clean up the public copy through the documented unpublish workflow.
                 .exec(Requests.createUnpublishPublication("#{publicationTargetFolder}",
@@ -383,7 +395,12 @@ public class Scenarios {
                 .exec(Auth0AuthenticationUIRequests::extractAuth0LoginParams)
                 .exec(Auth0AuthenticationUIRequests::prepareCsrfToken)
                 .exec(Auth0AuthenticationUIRequests.usernamePasswordChallenge())
-                .exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
+                .exitHereIfFailed()
+                .tryMax(3).on(
+                        exec(Auth0AuthenticationUIRequests.usernamePasswordLogin())
+                                .doIf(Session::isFailed).then(pause(30))
+                )
+                .exitHereIfFailed()
                 .exec(Auth0AuthenticationUIRequests.loginCallback());
     }
 
@@ -564,16 +581,16 @@ public class Scenarios {
                         .then(exec(session -> session.markAsSucceeded()).exec(requestChain)));
     }
 
-    /**
-     * Creates one MCP container as a precondition, exposes its URL as
-     * {@code toolsetEndpoint}, then independently executes each request workflow
-     * in the mixed-scenario scope with the same configured probability. A
-     * probability of 100 runs all six workflows.
-     */
-    public static ScenarioBuilder mcpContainerMixedRequestsScenario() {
-        return scenario("MCP container + mixed requests")
+    public static ScenarioBuilder adminCoreSystemSetupScenario() {
+        return scenario("Admin Core System setup")
+                .exec(session -> {
+                    MCP_RESOURCES.set(null);
+                    return session;
+                })
                 .exec(aiDialAdminAuth0UIAuthChain())
-                // Cleanup must stay disabled here because the following toolset workflow uses the container.
+                .exec(createCoreApiKeysChain())
+                .exitHereIfFailed()
+                // Cleanup must stay disabled because the workload population reuses this container.
                 .exec(runMcpContainerChain(
                         PropertiesHolder.mcpBuildMaxAttempts, PropertiesHolder.mcpBuildPollDuration,
                         PropertiesHolder.mcpStatusMaxAttempts, PropertiesHolder.mcpStatusPollDuration,
@@ -584,9 +601,33 @@ public class Scenarios {
                         logger.error("MCP precondition failed: no running container endpoint is available");
                         return session.markAsFailed();
                     }
-                    String endpoint = session.getString("mcpContainerUrl");
-                    logger.info("Saved MCP endpoint as toolsetEndpoint='{}'", endpoint);
-                    return session.set("toolsetEndpoint", endpoint);
+                    McpRunResources resources = new McpRunResources(
+                            session.getString("DIAL_CORE_API_KEY"),
+                            session.getString("DIAL_CORE_API_KEY_2"),
+                            session.getString("mcpContainerUrl"));
+                    MCP_RESOURCES.set(resources);
+                    logger.info("MCP setup completed; resources are ready for the workload population");
+                    return session;
+                })
+                .exitHereIfFailed();
+    }
+
+    /**
+     * Reuses the keys and MCP endpoint created once by {@link #adminCoreSystemSetupScenario()},
+     * then independently executes each request workflow with the configured probability.
+     */
+    public static ScenarioBuilder adminCoreSystemScenario() {
+        return scenario("Admin Core System")
+                .exec(session -> {
+                    McpRunResources resources = MCP_RESOURCES.get();
+                    if (resources == null) {
+                        logger.error("MCP workload cannot start because setup resources are unavailable");
+                        return session.markAsFailed();
+                    }
+                    return session
+                            .set("DIAL_CORE_API_KEY", resources.ownerApiKey())
+                            .set("DIAL_CORE_API_KEY_2", resources.receiverApiKey())
+                            .set("toolsetEndpoint", resources.endpoint());
                 })
                 .exitHereIfFailed()
                 .exec(requestChainWithProbability("Mixed - Toolset requests", toolsetRequestsChain()))

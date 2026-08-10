@@ -52,7 +52,7 @@ public final class Configs {
     );
 
     public static final Map<String, String> DIAL_CORE_API_HEADERS = apiKeyHeaders(
-        PropertiesHolder.dialCoreApiKey);
+        "#{DIAL_CORE_API_KEY}");
 
     public static final Map<String, String> DIAL_CORE_API_IF_MATCH_ANY_HEADERS = withHeaders(
         DIAL_CORE_API_HEADERS,
@@ -61,7 +61,7 @@ public final class Configs {
 
     // Second DIAL Core identity, used as the invitation receiver in the Sharing workflow.
     public static final Map<String, String> DIAL_CORE_API_HEADERS_2 = apiKeyHeaders(
-        PropertiesHolder.dialCoreApiKey2);
+        "#{DIAL_CORE_API_KEY_2}");
 
     public static final Map<String, String> DIAL_CORE_PER_REQUEST_API_HEADERS = apiKeyHeaders(
         PropertiesHolder.dialCorePerRequestApiKey);

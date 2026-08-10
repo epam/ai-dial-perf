@@ -81,6 +81,7 @@ runs:
       uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5.0.1
 
     - name: Install tools
+      if: ${{ inputs.simulation == 'LoadSimulation' }}
       run: |
         ./scripts/influx_pipeline.sh install
       shell: bash
@@ -100,6 +101,7 @@ runs:
         DIAL_ADMIN_USERS_FILE: ${{ env.DIAL_ADMIN_USERS_FILE }}
 
     - name: Start tools
+      if: ${{ inputs.simulation == 'LoadSimulation' }}
       run: |
         ./scripts/influx_pipeline.sh start
       shell: bash
@@ -107,8 +109,11 @@ runs:
       env:
         INFLUX_HOST: ${{ env.INFLUX_HOST }}
         INFLUX_TOKEN: ${{ env.INFLUX_TOKEN }}
+        INFLUX_ORG: dial
+        INFLUX_BUCKET: default
         ENV_NAME: ${{ inputs.report-prefix }}
         GATLING_RESULTS_DIR: build/reports/gatling/
+        X2I_STOP_TIMEOUT: "900"
 
     - name: Run Gatling performance tests
       run: |
@@ -130,7 +135,6 @@ runs:
           -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
           -DmodelEndpoint=$MODEL_ENDPOINT \
           -DaiAdminUsersFile=data/azure-users.csv \
-          -DdialAdminScope="$DIAL_ADMIN_SCOPE" \
           -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
           -DnextAuthSecret="$NEXTAUTH_SECRET" \
           2>&1 | tee gatlingRunLogs.log
@@ -154,7 +158,6 @@ runs:
         AUTH0_TENANT: test_gke_dial
         AUTH0_CONNECTION: Username-Password-Authentication
         AUTH0_AUDIENCE: test_gke_dial
-        DIAL_ADMIN_SCOPE: ""
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
       continue-on-error: true
@@ -205,11 +208,13 @@ runs:
         BUILD: ${{ github.run_number }}
 
     - name: Stop tools
-      if: always()
+      if: ${{ always() && inputs.simulation == 'LoadSimulation' }}
       run: |
         ./scripts/influx_pipeline.sh stop
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        X2I_STOP_TIMEOUT: "900"
 
     - name: Upload test artifacts
       if: always()

@@ -72,18 +72,9 @@ public class Requests {
     ***************************************************************
     */
 
-    public static HttpRequestActionBuilder createRoleAPI() {
-        return http("Create Role")
-                .post("/api/v1/roles")
-                .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
-                .body(StringBody("""
-                        {"name":"#{roleName}","displayName":"#{roleName}","description":""}
-                        """));
-    }
-
     public static HttpRequestActionBuilder createKeyWithRoleAPI() {
         return http("Create Key With Role")
-                .post("/api/v1/keys")
+                .post(aiAdminUrl("/api/v1/keys"))
                 .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS)
                 .body(StringBody("""
                         {"name":"#{keyName}","key":"#{keyValue}","displayName":"#{displayName}","project":"#{project}","secured":true,"roles":["#{roleName}"],"description":"string","projectContactPoint":"string","expiresAt":null,"validityState":{"message":"string","valid":true},"topics":["string"],"allowedIpAddressRanges":null}
@@ -92,8 +83,13 @@ public class Requests {
 
     public static HttpRequestActionBuilder getKeyAPI(String keyName) {
         return http("Get Key And Verify Assigned Role")
-                .get("/api/v1/keys/" + keyName)
+                .get(aiAdminUrl("/api/v1/keys/") + keyName)
                 .headers(Configs.DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS);
+    }
+
+    private static String aiAdminUrl(String path) {
+        String baseUrl = PropertiesHolder.aiAdminBaseUrl.replaceAll("/+$", "");
+        return baseUrl + (path.startsWith("/") ? path : "/" + path);
     }
 
     /*
@@ -101,7 +97,6 @@ public class Requests {
     * Application requests
     ***************************************************************
     */
-
     public static HttpRequestActionBuilder mcpToolsList(String bucket, String appPath) {
         return http("MCP tools/list")
                 .post("/v1/deployments/applications/" + bucket + "/" + appPath + "/mcp")
@@ -122,7 +117,8 @@ public class Requests {
     public static HttpRequestActionBuilder getApplicationTypeSchemas() {
         return http("Get Application Type Schemas")
                 .get("/v1/application_type_schemas/schemas")
-                .headers(Configs.DIAL_CORE_API_HEADERS);
+                .headers(Configs.DIAL_CORE_API_HEADERS)
+                .check(jsonPath("$[*]['$id']").findRandom().saveAs("applicationSchemaId"));
     }
 
     public static HttpRequestActionBuilder getApplicationTypeSchema(String schemaId) {
@@ -163,7 +159,8 @@ public class Requests {
                 .headers(Configs.DIAL_CORE_API_HEADERS);
     }
 
-    public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetPath, String toolsetName) {
+    public static HttpRequestActionBuilder updateToolset(String bucket, String toolsetPath,
+                                                         String toolsetName, String toolsetVersion) {
         String payload = """
                 {
                   "endpoint": "#{toolsetEndpoint}",
@@ -172,19 +169,12 @@ public class Requests {
                   "transport": "HTTP",
                   "allowedTools": [],
                   "authSettings": {"authenticationType": "NONE"}
-                }""".formatted(toolsetName, toolsetVersion(toolsetPath));
+                }""".formatted(toolsetName, toolsetVersion);
 
         return http("Update Toolset")
                 .put("/v1/toolsets/" + bucket + "/" + toolsetPath)
                 .headers(Configs.DIAL_CORE_API_HEADERS)
                 .body(StringBody(payload));
-    }
-
-    private static String toolsetVersion(String toolsetPath) {
-        int separator = toolsetPath.lastIndexOf("__");
-        return separator >= 0 && separator + 2 < toolsetPath.length()
-                ? toolsetPath.substring(separator + 2)
-                : "0.0.1";
     }
 
     public static HttpRequestActionBuilder toolsetMcpToolsList(String bucket, String toolsetName) {
@@ -464,8 +454,7 @@ public class Requests {
         return http(requestName)
                 .post("/v1/ops/resource/share/list")
                 .headers(headers)
-                .body(StringBody(payload))
-                .check(status().is(200));
+                .body(StringBody(payload));
     }
 
     public static HttpRequestActionBuilder revokeSharedResources(Map<String, String> headers, String resourceUrl) {
@@ -526,12 +515,12 @@ public class Requests {
                 .headers(headers);
     }
 
-    public static HttpRequestActionBuilder acceptInvitation(Map<String, String> headers, String invitationLinkEl) {
-        return http("Share - Accept Invitation")
-                .get(invitationLinkEl)
-                .queryParam("accept", "true")
-                .headers(headers);
-    }
+//     public static HttpRequestActionBuilder acceptInvitation(Map<String, String> headers, String invitationLinkEl) {
+//         return http("Share - Accept Invitation")
+//                 .get(invitationLinkEl)
+//                 .queryParam("accept", "true")
+//                 .headers(headers);
+//     }
 
     public static HttpRequestActionBuilder deleteInvitation(Map<String, String> headers, String invitationLinkEl) {
         return http("Share - Delete Invitation")
@@ -722,7 +711,8 @@ public class Requests {
         return http(requestName)
                 .post(dialCoreUrl("/v1/ops/publication/list"))
                 .headers(headers)
-                .body(StringBody(payload));
+                .body(StringBody(payload))
+                .check(status().is(200));
     }
 
     public static HttpRequestActionBuilder updatePublication(String publicationUrl, String name,
@@ -787,15 +777,6 @@ public class Requests {
                 .post(dialCoreUrl("/v1/ops/publication/rule/list"))
                 .headers(headers)
                 .body(StringBody(payload));
-    }
-
-    public static HttpRequestActionBuilder listPublishedResources() {
-        return http("Publication - List Published Resources")
-                .post(dialCoreUrl("/v1/ops/publication/resource/list"))
-                .headers(Configs.DIAL_CORE_API_HEADERS)
-                .body(StringBody("""
-                        {"resourceTypes": ["PROMPT"]}
-                        """));
     }
 
     public static HttpRequestActionBuilder getPublishedPrompt(String targetPath) {

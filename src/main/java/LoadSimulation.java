@@ -20,8 +20,17 @@ public class LoadSimulation extends Simulation {
     }
 
     private PopulationBuilder buildPopulation() {
-        ScenarioBuilder scn = config.scenario.get();
+        PopulationBuilder workload = buildWorkloadPopulation(config.scenario.get());
+        if (config.setupScenario == null) {
+            return workload;
+        }
 
+        return config.setupScenario.get()
+                .injectOpen(atOnceUsers(1))
+                .andThen(workload);
+    }
+
+    private PopulationBuilder buildWorkloadPopulation(ScenarioBuilder scn) {
         if (openModel) {
             return scn.injectOpen(
                 rampUsersPerSec(usersRampUpFrom).to(users).during(durationRampUp),
