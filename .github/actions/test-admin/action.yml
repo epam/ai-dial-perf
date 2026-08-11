@@ -195,38 +195,6 @@ runs:
       env:
         GATLING_RESULTS_DIR: build/reports/gatling/
 
-    - name: Send Report.json to InfluxDB
-      if: always()
-      run: |
-        if [ -f Report.json ] && [ "$SIMULATION" == "LoadSimulation" ]; then
-          echo "Converting Report.json to Influx line protocol (SCENARIO_NAME=$SCENARIO_NAME, ENV_NAME=$ENV_NAME)..."
-          ./scripts/report_to_influx.sh Report.json Report.lineproto
-          echo "Sending Report.json to InfluxDB..."
-          curl -sS -X POST "$INFLUX_HOST/api/v2/write?org=$INFLUX_ORG&bucket=$INFLUX_BUCKET&precision=s" \
-            -H "Authorization: Token $INFLUX_TOKEN" \
-            -H "Content-Type: text/plain" \
-            --data-binary @Report.lineproto || echo "Failed to send Report.json to InfluxDB"
-        else
-          if [ ! -f Report.json ]; then
-            echo "Report.json file not found."
-          else
-            echo "SIMULATION is not a Load simulation; skipping InfluxDB upload."
-          fi
-        fi
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        INFLUX_HOST: ${{ env.INFLUX_HOST }}
-        INFLUX_TOKEN: ${{ env.INFLUX_TOKEN }}
-        INFLUX_ORG: dial
-        INFLUX_BUCKET: default
-        SIMULATION: ${{ inputs.simulation }}
-        SCENARIO_NAME: ${{ inputs.scenario-name }}
-        ENV_NAME: ${{ inputs.report-prefix }}
-        DEPLOYMENT_NAME: ${{ inputs.deployment-name }}
-        USERS: ${{ inputs.users }}
-        BUILD: ${{ github.run_number }}
-
     - name: Stop tools
       if: ${{ always() && inputs.simulation == 'LoadSimulation' }}
       run: |
@@ -246,4 +214,7 @@ runs:
           ${{ inputs.working-directory }}/*.log
           ${{ inputs.working-directory }}/Report.*
           ${{ inputs.working-directory }}/gatling_stats.md
+          ${{ inputs.working-directory }}/x2i.log
+          ${{ inputs.working-directory }}/nginx.log
+          ${{ inputs.working-directory }}/telegraf.log
         retention-days: 7
