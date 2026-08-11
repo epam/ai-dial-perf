@@ -11,7 +11,7 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 | `sharingRequests` | Full DIAL Core **Sharing** API workflow: create/list/copy/revoke shared resources, invitation list/get/accept/delete, and (with a second Api-Key) receiver accept/discard |
 | `perRequestPermissions` | DIAL Core per-request-permissions grant/list/revoke (requires a per-request API key — a plain Api-Key returns 403) |
 | `publicationRequests` | Full DIAL Core **Publications** workflow: create/get/list/update/approve/reject/delete, rules and published-resource listing, plus unpublish cleanup |
-| `mcpContainerMixedRequests` | Authenticates, starts an MCP container, saves its URL as `toolsetEndpoint`, then runs all six in-scope request workflows with one shared configurable probability (excludes per-request permissions) |
+| `AdminCoreSystem` | Authenticates, starts an MCP container, saves its URL as `toolsetEndpoint`, then runs all six in-scope request workflows with one shared configurable probability (excludes per-request permissions) |
 
 ### Sharing scenario configuration
 
@@ -124,6 +124,18 @@ gradle gatlingRun --simulation=DebugSimulation \
   -DscenarioName=createKeyWithRole \
   -Dusers=1 \
   -DdialCoreBaseUrl=https://core-ai-dial-admin-frontend-pr-4096.gke.test.dial.parts/
+```
+
+### Run the mixed MCP + DIAL Core requests scenario
+
+This scenario authenticates via Auth0, starts an MCP container, then runs all
+six in-scope request workflows with a shared configurable probability.
+
+```bash
+gradle gatlingRun --simulation=DebugSimulation \
+  -DscenarioName=AdminCoreSystem \
+  -Dusers=1 \
+  -DmixedRequestProbability=100
 ```
 
 

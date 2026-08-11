@@ -59,6 +59,18 @@ inputs:
   deployment-name:
     description: "Deployment name (used for InfluxDB tagging)"
     default: "ai-dial-admin"
+  dial-core-base-url:
+    description: "DIAL Core base URL (required for DIAL Core / AdminCoreSystem scenarios)"
+    default: ""
+  url-deploy-service:
+    description: "Deployment-manager API base URL (required for AdminCoreSystem / runMcpContainer scenarios)"
+    default: ""
+  mcp-docker-image:
+    description: "Docker image used to build the MCP container"
+    default: "mcp/everything:latest"
+  mixed-request-probability:
+    description: "Independent execution probability (0-100) for each request workflow in AdminCoreSystem"
+    default: "100"
 
 runs:
   using: "composite"
@@ -137,6 +149,10 @@ runs:
           -DaiAdminUsersFile=data/azure-users.csv \
           -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
           -DnextAuthSecret="$NEXTAUTH_SECRET" \
+          -DdialCoreBaseUrl=$DIAL_CORE_BASE_URL \
+          -DurlDeployService=$URL_DEPLOY_SERVICE \
+          -DmcpDockerImage=$MCP_DOCKER_IMAGE \
+          -DmixedRequestProbability=$MIXED_REQUEST_PROBABILITY \
           2>&1 | tee gatlingRunLogs.log
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -160,6 +176,10 @@ runs:
         AUTH0_AUDIENCE: test_gke_dial
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
+        DIAL_CORE_BASE_URL: ${{ inputs.dial-core-base-url }}
+        URL_DEPLOY_SERVICE: ${{ inputs.url-deploy-service }}
+        MCP_DOCKER_IMAGE: ${{ inputs.mcp-docker-image }}
+        MIXED_REQUEST_PROBABILITY: ${{ inputs.mixed-request-probability }}
       continue-on-error: true
 
     - name: Parse Gatling report
@@ -174,38 +194,6 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         GATLING_RESULTS_DIR: build/reports/gatling/
-
-    - name: Send Report.json to InfluxDB
-      if: always()
-      run: |
-        if [ -f Report.json ] && [ "$SIMULATION" == "LoadSimulation" ]; then
-          echo "Converting Report.json to Influx line protocol (SCENARIO_NAME=$SCENARIO_NAME, ENV_NAME=$ENV_NAME)..."
-          ./scripts/report_to_influx.sh Report.json Report.lineproto
-          echo "Sending Report.json to InfluxDB..."
-          curl -sS -X POST "$INFLUX_HOST/api/v2/write?org=$INFLUX_ORG&bucket=$INFLUX_BUCKET&precision=s" \
-            -H "Authorization: Token $INFLUX_TOKEN" \
-            -H "Content-Type: text/plain" \
-            --data-binary @Report.lineproto || echo "Failed to send Report.json to InfluxDB"
-        else
-          if [ ! -f Report.json ]; then
-            echo "Report.json file not found."
-          else
-            echo "SIMULATION is not a Load simulation; skipping InfluxDB upload."
-          fi
-        fi
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        INFLUX_HOST: ${{ env.INFLUX_HOST }}
-        INFLUX_TOKEN: ${{ env.INFLUX_TOKEN }}
-        INFLUX_ORG: dial
-        INFLUX_BUCKET: default
-        SIMULATION: ${{ inputs.simulation }}
-        SCENARIO_NAME: ${{ inputs.scenario-name }}
-        ENV_NAME: ${{ inputs.report-prefix }}
-        DEPLOYMENT_NAME: ${{ inputs.deployment-name }}
-        USERS: ${{ inputs.users }}
-        BUILD: ${{ github.run_number }}
 
     - name: Stop tools
       if: ${{ always() && inputs.simulation == 'LoadSimulation' }}
@@ -226,4 +214,7 @@ runs:
           ${{ inputs.working-directory }}/*.log
           ${{ inputs.working-directory }}/Report.*
           ${{ inputs.working-directory }}/gatling_stats.md
+          ${{ inputs.working-directory }}/x2i.log
+          ${{ inputs.working-directory }}/nginx.log
+          ${{ inputs.working-directory }}/telegraf.log
         retention-days: 7
