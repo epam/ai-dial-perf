@@ -59,6 +59,18 @@ inputs:
   deployment-name:
     description: "Deployment name (used for InfluxDB tagging)"
     default: "ai-dial-admin"
+  dial-core-base-url:
+    description: "DIAL Core base URL (required for DIAL Core / AdminCoreSystem scenarios)"
+    default: ""
+  url-deploy-service:
+    description: "Deployment-manager API base URL (required for AdminCoreSystem / runMcpContainer scenarios)"
+    default: ""
+  mcp-docker-image:
+    description: "Docker image used to build the MCP container"
+    default: "mcp/everything:latest"
+  mixed-request-probability:
+    description: "Independent execution probability (0-100) for each request workflow in AdminCoreSystem"
+    default: "100"
 
 runs:
   using: "composite"
@@ -137,6 +149,10 @@ runs:
           -DaiAdminUsersFile=data/azure-users.csv \
           -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
           -DnextAuthSecret="$NEXTAUTH_SECRET" \
+          -DdialCoreBaseUrl=$DIAL_CORE_BASE_URL \
+          -DurlDeployService=$URL_DEPLOY_SERVICE \
+          -DmcpDockerImage=$MCP_DOCKER_IMAGE \
+          -DmixedRequestProbability=$MIXED_REQUEST_PROBABILITY \
           2>&1 | tee gatlingRunLogs.log
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -160,6 +176,10 @@ runs:
         AUTH0_AUDIENCE: test_gke_dial
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
+        DIAL_CORE_BASE_URL: ${{ inputs.dial-core-base-url }}
+        URL_DEPLOY_SERVICE: ${{ inputs.url-deploy-service }}
+        MCP_DOCKER_IMAGE: ${{ inputs.mcp-docker-image }}
+        MIXED_REQUEST_PROBABILITY: ${{ inputs.mixed-request-probability }}
       continue-on-error: true
 
     - name: Parse Gatling report
