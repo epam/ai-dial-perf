@@ -25,7 +25,7 @@ inputs:
     default: "DebugSimulation"
   scenario-name:
     description: "Scenario to run (e.g. aiDialAdminCreateModelAPI)"
-    default: "aiDialAdminCreateModelAPI"
+    default: "AdminCoreSystem"
   open-model:
     description: "Use open injection model (true) or closed (false)"
     default: "true"
