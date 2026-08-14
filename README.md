@@ -27,7 +27,7 @@ the per-request key falls back to `DIAL_CORE_API_KEY` when it is not set.
 
 The `publicationRequests` scenario uses `DIAL_CORE_API_KEY` for the publication owner
 and authenticates the administrator through the existing Admin UI Auth0 flow. The
-administrator credentials must be present in `src/main/resources/data/azure-users.csv`.
+administrator credentials must be provided through `ADMIN_LOGIN` / `ADMIN_PASSWORD`.
 If UI authentication is unavailable, provide an administrator token directly through
 `publicationAdminBearerToken` or `PUBLICATION_ADMIN_BEARER_TOKEN`.
 Each iteration uses unique private and public prompt paths and removes both through
@@ -51,6 +51,8 @@ Create it with the following keys:
 NEXTAUTH_SECRET=<nextauth-secret>          # secret used to decrypt the NextAuth session cookie
 URL_ADMIN=https://<admin-app-host>          # Admin app base URL (Auth0 login)
 URL_DEPLOY_SERVICE=https://<deployment-manager-host>   # deployment-manager API base URL
+ADMIN_LOGIN=<admin-username>                # Admin UI login (Azure AD / Auth0)
+ADMIN_PASSWORD=<admin-password>             # Admin UI password (Azure AD / Auth0)
 
 # --- DIAL Core ---
 DIAL_CORE_BASE_URL=https://<dial-core-host>
@@ -68,6 +70,8 @@ FILE_NAME=<existing-public-file>
 | `NEXTAUTH_SECRET` | Gatling + deploy script | Secret that derives the NextAuth cookie-decryption key |
 | `URL_ADMIN` | Gatling + deploy script | Admin app base URL used for Auth0 login |
 | `URL_DEPLOY_SERVICE` | Gatling + deploy script | Deployment-manager API base URL |
+| `ADMIN_LOGIN` | Gatling | Admin UI login used by the Azure AD / Auth0 authentication chains |
+| `ADMIN_PASSWORD` | Gatling | Admin UI password used by the Azure AD / Auth0 authentication chains |
 | `DIAL_CORE_BASE_URL` | Gatling | DIAL Core base URL |
 | `DIAL_CORE_API_KEY` | Gatling | Owner identity used by DIAL Core scenarios |
 | `DIAL_CORE_API_KEY_2` | Gatling | Optional second identity used by sharing receiver-side steps |
@@ -83,13 +87,10 @@ the schema-list response, and all fixture buckets use the `public` code constant
 
 ### User credentials
 
-For Auth0/Azure usernames and passwords the `azure-users.csv` file should be placed at `src/main/resources/data/azure-users.
-csv` with columns: `username,password`.
-
-```csv
-username,password
-dial_admin@example.com,<password>
-```
+Auth0/Azure AD admin credentials used by the UI authentication chains are provided
+through the `ADMIN_LOGIN` and `ADMIN_PASSWORD` environment variables (in the `.env`
+file, as real env vars, or as `-DadminLogin=... -DadminPassword=...` system
+properties).
 
 ## Running Tests Locally
 
