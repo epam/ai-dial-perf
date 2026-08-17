@@ -59,7 +59,9 @@ public class Scenarios {
     }
 
     public static ChainBuilder aiDialAdminUIAuthChain() {
-        return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
+        return exec(session -> session
+                        .set("username", PropertiesHolder.adminLogin)
+                        .set("password", PropertiesHolder.adminPassword))
                 .exec(session -> session.set("hpgrequestid", java.util.UUID.randomUUID().toString()))
                 .exec(AzureADAuthenticationUIRequests.navigateToSignIn())
                 .exec(AzureADAuthenticationUIRequests.initiateAzureADSignIn())
@@ -389,7 +391,9 @@ public class Scenarios {
     }
 
     public static ChainBuilder aiDialAdminAuth0UIAuthChain() {
-        return exec(feed(csv(PropertiesHolder.aiAdminUsersFile).circular()))
+        return exec(session -> session
+                        .set("username", PropertiesHolder.adminLogin)
+                        .set("password", PropertiesHolder.adminPassword))
                 .exec(Auth0AuthenticationUIRequests.navigateToSignIn())
                 .exec(Auth0AuthenticationUIRequests.initiateAuth0SignIn())
                 .exec(Auth0AuthenticationUIRequests::extractAuth0LoginParams)

@@ -22,7 +22,7 @@ inputs:
   # Specific
   simulation:
     description: "Simulation type: DebugSimulation or LoadSimulation"
-    default: "DebugSimulation"
+    default: "LoadSimulation"
   scenario-name:
     description: "Scenario to run (e.g. aiDialAdminCreateModelAPI)"
     default: "AdminCoreSystem"
@@ -99,19 +99,6 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
 
-    - name: Prepare users CSV file
-      run: |
-        mkdir -p src/main/resources/data
-        printf '%s\n' "$DIAL_ADMIN_USERS_FILE" > src/main/resources/data/azure-users.csv
-        if [ ! -s src/main/resources/data/azure-users.csv ]; then
-          echo "::error::DIAL_ADMIN_USERS_FILE env var is missing or empty. Pass CSV content (header: username,password)."
-          exit 1
-        fi
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        DIAL_ADMIN_USERS_FILE: ${{ env.DIAL_ADMIN_USERS_FILE }}
-
     - name: Start tools
       if: ${{ inputs.simulation == 'LoadSimulation' }}
       run: |
@@ -146,7 +133,8 @@ runs:
           -DmodelSyncAttempts=$MODEL_SYNC_ATTEMPTS \
           -DmodelSyncPauseDuration=$MODEL_SYNC_PAUSE_DURATION \
           -DmodelEndpoint=$MODEL_ENDPOINT \
-          -DaiAdminUsersFile=data/azure-users.csv \
+          -DadminLogin="$ADMIN_LOGIN" \
+          -DadminPassword="$ADMIN_PASSWORD" \
           -DdialAdminClientId=$DIAL_ADMIN_CLIENT_ID \
           -DnextAuthSecret="$NEXTAUTH_SECRET" \
           -DdialCoreBaseUrl=$DIAL_CORE_BASE_URL \
@@ -170,6 +158,8 @@ runs:
         MODEL_SYNC_ATTEMPTS: ${{ inputs.model-sync-attempts }}
         MODEL_SYNC_PAUSE_DURATION: ${{ inputs.model-sync-pause-duration }}
         MODEL_ENDPOINT: ${{ inputs.model-endpoint }}
+        ADMIN_LOGIN: ${{ env.ADMIN_LOGIN }}
+        ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
         AUTH0_DOMAIN: ${{ env.AUTH0_DOMAIN }}
         AUTH0_TENANT: test_gke_dial
         AUTH0_CONNECTION: Username-Password-Authentication

@@ -17,7 +17,9 @@ public class PropertiesHolder {
     public static final String aiAdminBaseUrl = defaultIfBlank(
             resolveSystemThenEnv("aiAdminBaseUrl", "URL_ADMIN", "aiAdminBaseUrl"),
             "https://ai-dial-admin.example.com/");
-    public static final String aiAdminUsersFile = stringSystemProperty("aiAdminUsersFile", "data/azure-users.csv");
+    // Admin UI credentials (Azure AD / Auth0 login), replacing the azure-users.csv feeder.
+    public static final String adminLogin = resolveSystemThenEnv("adminLogin", "ADMIN_LOGIN", "adminLogin", "ADMIN_LOGIN");
+    public static final String adminPassword = resolveSystemThenEnv("adminPassword", "ADMIN_PASSWORD", "adminPassword", "ADMIN_PASSWORD");
     public static final String azureTenantId = stringSystemProperty("azureTenantId", "b41b72d0-4e9f-4c26-8a69-f949f367c91d");
     public static final String auth0Tenant = stringSystemProperty("auth0Tenant", "aidial");
     public static final String auth0Connection = stringSystemProperty("auth0Connection", "test-gke-dial");
