@@ -162,7 +162,7 @@ runs:
         ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
         AUTH0_DOMAIN: ${{ env.AUTH0_DOMAIN }}
         AUTH0_TENANT: test_gke_dial
-        AUTH0_CONNECTION: Username-Password-Authentication
+        AUTH0_CONNECTION: test-gke-dial
         AUTH0_AUDIENCE: test_gke_dial
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
