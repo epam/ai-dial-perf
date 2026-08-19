@@ -28,7 +28,7 @@ inputs:
     default: "AdminCoreSystem"
   open-model:
     description: "Use open injection model (true) or closed (false)"
-    default: "true"
+    default: "false"
   users:
     description: "Number of users (concurrent for closed, users/sec for open model)"
     default: "1"

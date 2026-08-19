@@ -11,7 +11,8 @@ Performance testing framework for [AI Dial Admin](https://github.com/epam/ai-dia
 | `sharingRequests` | Full DIAL Core **Sharing** API workflow: create/list/copy/revoke shared resources, invitation list/get/accept/delete, and (with a second Api-Key) receiver accept/discard |
 | `perRequestPermissions` | DIAL Core per-request-permissions grant/list/revoke (requires a per-request API key — a plain Api-Key returns 403) |
 | `publicationRequests` | Full DIAL Core **Publications** workflow: create/get/list/update/approve/reject/delete, rules and published-resource listing, plus unpublish cleanup |
-| `AdminCoreSystem` | Authenticates, starts an MCP container, saves its URL as `toolsetEndpoint`, then runs all six in-scope request workflows with one shared configurable probability (excludes per-request permissions) |
+| `importImageFile` | Authenticates and imports the bundled `camaro.jpg` into `public/` through the Admin API |
+| `AdminCoreSystem` | Authenticates, creates an application asset, prepares an MCP container and the bundled image fixture, then runs all six in-scope request workflows (excludes per-request permissions) |
 
 ### Sharing scenario configuration
 
@@ -62,7 +63,6 @@ DIAL_CORE_API_KEY_2=<receiver-api-key>      # optional; sharing receiver-side st
 # --- Existing public fixtures / standalone endpoint ---
 APP_NAME=<existing-public-application>
 TOOLSET_ENDPOINT=https://<standalone-mcp-endpoint>
-FILE_NAME=<existing-public-file>
 ```
 
 | Variable | Used by | Description |
@@ -77,7 +77,6 @@ FILE_NAME=<existing-public-file>
 | `DIAL_CORE_API_KEY_2` | Gatling | Optional second identity used by sharing receiver-side steps |
 | `APP_NAME` | Application requests | Existing application in the public bucket |
 | `TOOLSET_ENDPOINT` | Standalone toolset requests | MCP endpoint; mixed MCP tests derive it from the deployment response |
-| `FILE_NAME` | File requests | Existing source file in the public bucket |
 
 Auth0 scope and client ID are derived from the login response. Prompt and toolset
 identifiers are generated per iteration, the application schema ID is selected from
@@ -129,8 +128,9 @@ gradle gatlingRun --simulation=DebugSimulation \
 
 ### Run the mixed MCP + DIAL Core requests scenario
 
-This scenario authenticates via Auth0, starts an MCP container, then runs all
-six in-scope request workflows with a shared configurable probability.
+This scenario authenticates via Auth0, creates and verifies an application asset,
+starts an MCP container, imports the bundled `camaro.jpg` file, then runs all six
+in-scope request workflows with a shared configurable probability.
 
 ```bash
 gradle gatlingRun --simulation=DebugSimulation \

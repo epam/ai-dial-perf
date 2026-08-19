@@ -39,6 +39,21 @@ public final class Configs {
         "If-None-Match", "*"
     );
 
+    // Multipart requests must let Gatling generate the Content-Type boundary.
+    public static final Map<String, String> DIAL_ADMIN_MULTIPART_HEADERS = Map.of(
+        "Authorization", ADMIN_BEARER_TOKEN
+    );
+
+    public static final Map<String, String> DIAL_ADMIN_IF_MATCH_HEADERS = withHeaders(
+        ADMIN_BEARER_JSON_HEADERS,
+        "If-Match", "*"
+    );
+
+    public static final Map<String, String> DIAL_ADMIN_IF_NONE_MATCH_HEADERS = withHeaders(
+        ADMIN_BEARER_JSON_HEADERS,
+        "If-None-Match", "*"
+    );
+
     public static final Map<String, String> DIAL_CORE_CREATE_KEY_WITH_ROLE_HEADERS = withHeaders(
         ADMIN_BEARER_JSON_HEADERS,
         "If-None-Match", "*"

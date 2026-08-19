@@ -53,6 +53,10 @@ public class ScenarioRegistry {
             Scenarios::fileRequestsScenario,
             dialCoreBaseUrl
         )),
+        Map.entry("importImageFile", new ScenarioConfig(
+            Scenarios::importImageFileScenario,
+            aiAdminBaseUrl
+        )),
         Map.entry("deploymentListing", new ScenarioConfig(
             Scenarios::deploymentListingScenario,
             dialCoreBaseUrl

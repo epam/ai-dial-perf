@@ -18,6 +18,8 @@ public class Scenarios {
 
     private static final Logger logger = LoggerFactory.getLogger(Scenarios.class);
     private static final String PUBLIC_BUCKET = "public";
+    private static final String IMAGE_FILE_NAME = "camaro.jpg";
+    private static final String IMAGE_FILE_RESOURCE = "data/file_import/" + IMAGE_FILE_NAME;
     private static final String TOOLSET_VERSION = "0.0.1";
     private static final String DEFAULT_ROLE_NAME = "default";
     private static final AtomicReference<McpRunResources> MCP_RESOURCES = new AtomicReference<>();
@@ -112,6 +114,23 @@ public class Scenarios {
                 .exec(aiDialApplicationRequestsChain());
     }
 
+    public static ChainBuilder createAssetApplicationChain() {
+        return exec(session -> {
+                    int nameSuffix = ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
+                    int displayNameSuffix = ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
+                    int endpointSuffix = ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
+                    String name = "ApplicationWithEndpointByAuto" + nameSuffix;
+                    return session
+                            .set("assetApplicationName", name)
+                            .set("assetApplicationDisplayName", "display_name" + displayNameSuffix)
+                            .set("assetApplicationEndpoint", "https://test" + endpointSuffix)
+                            .set("assetApplicationPath", PUBLIC_BUCKET + "/" + name + "__1.0.0");
+                })
+                .exec(Requests.createAssetApplicationViaAdminApi())
+                .exitHereIfFailed()
+                .exec(Requests.getAssetApplicationViaAdminApi());
+    }
+
     public static ChainBuilder toolsetRequestsChain() {
         return exec(Scenarios::prepareToolsetSession)
                 .exec(Requests.getBucket())
@@ -157,7 +176,7 @@ public class Scenarios {
 
     public static ChainBuilder fileRequestsChain() {
         String bucket = PUBLIC_BUCKET;
-        String fileName = PropertiesHolder.fileName;
+        String fileName = IMAGE_FILE_NAME;
         String sourceUrl = "files/" + bucket + "/" + fileName;
 
         return exec(session -> session.set("fileWorkName", "perf-" + java.util.UUID.randomUUID() + ".jpg"))
@@ -208,6 +227,18 @@ public class Scenarios {
     public static ScenarioBuilder fileRequestsScenario() {
         return scenario("File requests")
                 .exec(fileRequestsChain());
+    }
+
+    public static ChainBuilder importImageFileChain() {
+        return exec(Requests.importFileViaAdminApi(
+                IMAGE_FILE_RESOURCE, IMAGE_FILE_NAME, PUBLIC_BUCKET + "/"));
+    }
+
+    public static ScenarioBuilder importImageFileScenario() {
+        return scenario("Import img file via API")
+                .exec(aiDialAdminAuth0UIAuthChain())
+                .exitHereIfFailed()
+                .exec(importImageFileChain());
     }
 
     public static ChainBuilder deploymentListingChain() {
@@ -592,6 +623,8 @@ public class Scenarios {
                     return session;
                 })
                 .exec(aiDialAdminAuth0UIAuthChain())
+                .exec(createAssetApplicationChain())
+                .exitHereIfFailed()
                 .exec(createCoreApiKeysChain())
                 .exitHereIfFailed()
                 // Cleanup must stay disabled because the workload population reuses this container.
@@ -605,6 +638,13 @@ public class Scenarios {
                         logger.error("MCP precondition failed: no running container endpoint is available");
                         return session.markAsFailed();
                     }
+                    return session;
+                })
+                .exitHereIfFailed()
+                // The file workload uses this imported image as its shared source fixture.
+                .exec(importImageFileChain())
+                .exitHereIfFailed()
+                .exec(session -> {
                     McpRunResources resources = new McpRunResources(
                             session.getString("DIAL_CORE_API_KEY"),
                             session.getString("DIAL_CORE_API_KEY_2"),

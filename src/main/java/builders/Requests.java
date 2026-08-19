@@ -147,6 +147,31 @@ public class Requests {
                 .headers(Configs.DIAL_CORE_API_HEADERS);
     }
 
+    public static HttpRequestActionBuilder createAssetApplicationViaAdminApi() {
+        return http("Create Asset Application via Admin API")
+                .post(aiAdminUrl("/api/v1/application-resources/create"))
+                .headers(Configs.DIAL_ADMIN_IF_MATCH_HEADERS)
+                .body(StringBody("""
+                        {
+                          "name": "#{assetApplicationName}",
+                          "version": "1.0.0",
+                          "folderId": "public/",
+                          "endpoint": "#{assetApplicationEndpoint}",
+                          "displayName": "#{assetApplicationDisplayName}",
+                          "description": ""
+                        }"""));
+    }
+
+    public static HttpRequestActionBuilder getAssetApplicationViaAdminApi() {
+        return http("Get Asset Application via Admin API")
+                .post(aiAdminUrl("/api/v1/application-resources/get"))
+                .headers(Configs.DIAL_ADMIN_IF_NONE_MATCH_HEADERS)
+                .body(StringBody("""
+                        {"path": "#{assetApplicationPath}"}
+                        """))
+                .check(status().is(200));
+    }
+
     /*
     ***************************************************************
     * Toolset requests
@@ -265,6 +290,31 @@ public class Requests {
     * Files requests
     ***************************************************************
     */
+
+    public static HttpRequestActionBuilder importFileViaAdminApi(String resourcePath, String fileName,
+                                                                  String targetPath) {
+        String config = """
+                {
+                  "path": "%s",
+                  "flatImport": true,
+                  "conflictResolutionStrategy": "OVERRIDE",
+                  "rules": []
+                }""".formatted(targetPath);
+
+        return http("Import Image File via Admin API")
+                .post(aiAdminUrl("/api/v1/files/import"))
+                .queryParam("resolutionPolicy", "OVERRIDE")
+                .queryParam("createRoleIfAbsent", "true")
+                .queryParam("createAdapterIfAbsent", "true")
+                .headers(Configs.DIAL_ADMIN_MULTIPART_HEADERS)
+                .bodyParts(
+                        RawFileBodyPart("files", resourcePath)
+                                .fileName(fileName)
+                                // Preserve the multipart type used by the source Python API test.
+                                .contentType("application/json"),
+                        StringBodyPart("config", config).contentType("application/json"))
+                .asMultipartForm();
+    }
 
     public static HttpRequestActionBuilder getFile(String bucket, String filePath) {
         return http("Get File")
