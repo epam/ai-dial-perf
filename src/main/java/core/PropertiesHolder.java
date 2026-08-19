@@ -49,9 +49,6 @@ public class PropertiesHolder {
     public static final String toolsetEndpoint = defaultIfBlank(
             resolveSystemThenEnv("toolsetEndpoint", "TOOLSET_ENDPOINT", "toolsetEndpoint"),
             "https://test.com/mcp");
-    public static final String fileName = resolveSystemThenEnv(
-            "fileName", "FILE_NAME", "fileName");
-
     // MCP deployment-manager (deploy service) workflow — mirrors scripts/DeployApp/run_mcp_container.py.
     // Base URL of the deployment-manager API (Python: URL_DEPLOY_SERVICE / url_depl).
     public static final String urlDeployService = defaultIfBlank(

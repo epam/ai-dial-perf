@@ -40,7 +40,7 @@ public class LoadSimulation extends Simulation {
         }
         else {
             return scn.injectClosed(
-                rampConcurrentUsers(usersRampUpFrom).to(users).during(duration),
+                rampConcurrentUsers(usersRampUpFrom).to(users).during(durationRampUp),
                 constantConcurrentUsers(users).during(duration),
                 rampConcurrentUsers(users).to(usersRampDownTo).during(durationRampDown)
             );
