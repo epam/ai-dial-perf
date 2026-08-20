@@ -166,8 +166,8 @@ runs:
         AUTH0_AUDIENCE: test_gke_dial
         DIAL_ADMIN_CLIENT_ID: ${{ env.DIAL_ADMIN_CLIENT_ID }}
         NEXTAUTH_SECRET: ${{ env.DIAL_ADMIN_NEXTAUTH_SECRET }}
-        DIAL_CORE_BASE_URL: ${{ inputs.dial-core-base-url }}
-        URL_DEPLOY_SERVICE: ${{ inputs.url-deploy-service }}
+        DIAL_CORE_BASE_URL: ${{ env.DIAL_CORE_BASE_URL }}
+        URL_DEPLOY_SERVICE: ${{ env.URL_DEPLOY_SERVICE }}
         MCP_DOCKER_IMAGE: ${{ inputs.mcp-docker-image }}
         MIXED_REQUEST_PROBABILITY: ${{ inputs.mixed-request-probability }}
       continue-on-error: true
